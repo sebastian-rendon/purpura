@@ -41,7 +41,7 @@ services:
       SESSION_SECRET_KEY: ${SESSION_SECRET_KEY}
       APP_ENV: production
       # Opcional. Si está vacío, evaluacion_ia.py cae en modo fallback.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
     ports:
       - "80:8000"      # Expuesto público en puerto 80, demo por HTTP plano.
 

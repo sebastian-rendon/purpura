@@ -122,13 +122,13 @@ async def main():
         modo_llm = "modo: llm" in header_text.lower()
         modo_fallback = "modo: fallback" in header_text.lower()
         modo_reglas = "modo: reglas" in header_text.lower()
-        modelo_haiku = "claude-haiku" in header_text.lower()
+        modelo_gemini = "gemini-2.0-flash" in header_text.lower()   
 
         print(f"[verify] decision sugerida = {decision}")
         print(f"[verify] modo=llm:      {modo_llm}")
         print(f"[verify] modo=reglas:   {modo_reglas}")
         print(f"[verify] modo=fallback: {modo_fallback}")
-        print(f"[verify] modelo claude-haiku: {modelo_haiku}")
+        print(f"[verify] modelo gemini-2.0-flash: {modelo_gemini}")
 
         await page.screenshot(path=str(OUT_PATH), full_page=True)
         print(f"[verify] screenshot: {OUT_PATH.absolute()}")
@@ -141,8 +141,8 @@ async def main():
         if not (modo_llm or modo_reglas):
             print("[WARN] No se identificó el modo. Revisar manualmente el screenshot.")
             return 1
-        if modo_llm and modelo_haiku:
-            print("[OK] Evaluación IA en modo LLM REAL confirmada con claude-haiku-4-5-20251001.")
+        if modo_llm and modelo_gemini:
+            print("[OK] Evaluación IA en modo LLM REAL confirmada con gemini-2.0-flash.")
             return 0
         if modo_reglas:
             print("[OK-REGLAS] Modo reglas determinísticas activo (datos suficientes, LLM no se invocó).")

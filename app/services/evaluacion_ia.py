@@ -4,7 +4,7 @@ Evaluación automática híbrida de postulaciones.
 Estrategia:
 1. Si los datos del estudiante son suficientes para aplicar reglas
    determinísticas → decide AUTO_APTO / AUTO_NO_APTO.
-2. Si los datos son insuficientes → invoca Claude Haiku con prompt
+2. Si los datos son insuficientes → invoca Gemini Flash con prompt
    estructurado y persiste la sugerencia.
 3. Si la API falla (timeout, rate limit, key faltante, etc.) → fallback
    REVISAR_MANUAL sin levantar excepción al caller.
@@ -25,7 +25,7 @@ from typing import Any, Optional
 
 LOGGER = logging.getLogger(__name__)
 
-ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
+GEMINI_MODEL = "gemini-2.0-flash"
 _TIMEOUT_SEC = 10
 _MAX_TOKENS = 300
 _TEMPERATURE = 0.2
@@ -193,28 +193,32 @@ _DECISION_LLM_A_INTERNA = {
 }
 
 
-def _invocar_haiku(postulacion, convocatoria, estudiante) -> dict[str, Any]:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+def _invocar_gemini(postulacion, convocatoria, estudiante) -> dict[str, Any]:
+    api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY no configurada")
+        raise RuntimeError("GOOGLE_API_KEY no configurada")
 
-    from anthropic import Anthropic
+    import google.generativeai as genai
 
-    client = Anthropic(api_key=api_key, timeout=_TIMEOUT_SEC)
+    genai.configure(api_key=api_key)
+
     user_message = _construir_user_message(postulacion, convocatoria, estudiante)
+    prompt_completo = _PROMPT_SISTEMA + "\n\n" + user_message
 
-    resp = client.messages.create(
-        model=ANTHROPIC_MODEL,
-        max_tokens=_MAX_TOKENS,
-        temperature=_TEMPERATURE,
-        system=_PROMPT_SISTEMA,
-        messages=[{"role": "user", "content": user_message}],
+    model = genai.GenerativeModel(
+        model_name=GEMINI_MODEL,
+        generation_config=genai.types.GenerationConfig(
+            max_output_tokens=_MAX_TOKENS,
+            temperature=_TEMPERATURE,
+        ),
     )
 
+    resp = model.generate_content(prompt_completo)
+
     texto_resp = ""
-    if resp.content:
-        primer = resp.content[0]
-        texto_resp = getattr(primer, "text", "") or ""
+    if resp.text:
+        texto_resp = resp.text.strip()
+
     parsed = _parsear_json_defensivo(texto_resp)
 
     decision_llm = parsed.get("decision", "REVISAR_MANUAL")
@@ -235,11 +239,12 @@ def _invocar_haiku(postulacion, convocatoria, estudiante) -> dict[str, Any]:
         justificacion = str(justificacion)
     justificacion = justificacion[:300]
 
+    # Tokens de uso si están disponibles
     tokens_in = 0
     tokens_out = 0
-    if getattr(resp, "usage", None):
-        tokens_in = getattr(resp.usage, "input_tokens", 0) or 0
-        tokens_out = getattr(resp.usage, "output_tokens", 0) or 0
+    if getattr(resp, "usage_metadata", None):
+        tokens_in = getattr(resp.usage_metadata, "prompt_token_count", 0) or 0
+        tokens_out = getattr(resp.usage_metadata, "candidates_token_count", 0) or 0
 
     return {
         "decision_sugerida": decision_sugerida,
@@ -247,7 +252,7 @@ def _invocar_haiku(postulacion, convocatoria, estudiante) -> dict[str, Any]:
         "modo": "llm",
         "justificacion": justificacion,
         "checks": [],
-        "modelo": ANTHROPIC_MODEL,
+        "modelo": GEMINI_MODEL,
         "tokens_in": tokens_in,
         "tokens_out": tokens_out,
     }
@@ -285,7 +290,7 @@ def evaluar_postulacion(
             }
 
     try:
-        llm_result = _invocar_haiku(postulacion, convocatoria, estudiante)
+        llm_result = _invocar_gemini(postulacion, convocatoria, estudiante)
         return {**base, **llm_result}
     except Exception as exc:
         LOGGER.warning(
@@ -308,12 +313,7 @@ def evaluar_postulacion(
 
 
 def get_ultima_evaluacion(postulacion) -> Optional[dict[str, Any]]:
-    """Recupera la evaluación más reciente, priorizando el campo dedicado.
-
-    Si el campo `evaluacion_ia_ultima` está poblado, lo retorna directo.
-    Sino, escanea `historial_estados` buscando el último evento
-    tipo='evaluacion_ia'.
-    """
+    """Recupera la evaluación más reciente, priorizando el campo dedicado."""
     directo = getattr(postulacion, "evaluacion_ia_ultima", None)
     if directo:
         return directo
