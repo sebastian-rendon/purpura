@@ -1046,6 +1046,11 @@ def convocatorias_detalle(
             elif postulacion_activa.estado in (POST_ENVIADA, POST_EN_REVISION):
                 puede_cancelar_postulacion = True
 
+    puede_adjudicar = conv.status == ConvocatoriaStatus.CERRADA and (
+        user.role == UserRole.ADMINISTRADOR
+        or (user.role == UserRole.COORDINADOR and conv.created_by == user.id)
+    )
+
     return templates.TemplateResponse(
         request,
         "convocatorias_detalle.html",
@@ -1057,6 +1062,7 @@ def convocatorias_detalle(
             "creator": creator,
             "transiciones": transiciones,
             "puede_editar": puede_editar,
+            "puede_adjudicar": puede_adjudicar,
             "postulacion_activa": postulacion_activa,
             "postulacion_historica": postulacion_historica,
             "puede_postular": puede_postular,
@@ -1780,8 +1786,8 @@ def postulacion_transicionar(
         ),
         POST_APROBADA: (
             f"¡Postulación aprobada en {conv.codigo}!",
-            f"Tu postulación a «{conv.titulo}» fue aprobada. Falta la "
-            f"adjudicación final del administrador.",
+            f"Tu postulación a «{conv.titulo}» fue aprobada. "
+            f"Falta la adjudicación final.",
         ),
         POST_RECHAZADA: (
             f"Postulación rechazada en {conv.codigo}",

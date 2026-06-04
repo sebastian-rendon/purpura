@@ -105,7 +105,7 @@
 </div>
 {% endif %}
 
-{% if user.role.value == 'administrador' and convocatoria.status.value == 'cerrada' %}
+{% if puede_adjudicar %}
 <div class="udem-card" style="margin-bottom:18px; border-left:4px solid var(--udem-dorado);">
   <h3 style="margin:0 0 8px 0; font-size:15px; color:var(--udem-negro); font-family:var(--font-display);">Convocatoria cerrada — pendiente de adjudicar</h3>
   <p style="margin:0 0 12px 0; font-size:13px; color:var(--udem-gris-texto);">
