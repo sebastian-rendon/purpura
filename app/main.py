@@ -2188,21 +2188,61 @@ def convocatorias_eliminar(
         return RedirectResponse(f"/convocatorias/{conv_id}", status_code=303)
 
     from app.models import Monitor
-    monitores = session.exec(select(Monitor).where(Monitor.convocatoria_id == conv_id)).all()
-    for m in monitores:
-        session.delete(m)
 
-    postulaciones = session.exec(select(Postulacion).where(Postulacion.convocatoria_id == conv_id)).all()
-    for p in postulaciones:
-        session.delete(p)
+    codigo_guardado = conv.codigo  # guardar antes de borrar
 
-    session.delete(conv)
-    session.commit()
+    try:
+        # Paso 1: postulaciones de esta convocatoria
+        postulaciones = session.exec(
+            select(Postulacion).where(Postulacion.convocatoria_id == conv_id)
+        ).all()
+        post_ids = [p.id for p in postulaciones]
 
-    log_audit(session, user_id=user.id, action="DELETE_CONVOCATORIA", request=request,
-              entity_type="convocatoria", entity_id=conv_id,
-              payload={"codigo": conv.codigo})
+        # Paso 2: monitores que referencian esas postulaciones (FK postulacion_id)
+        if post_ids:
+            monitores_por_post = session.exec(
+                select(Monitor).where(Monitor.postulacion_id.in_(post_ids))
+            ).all()
+            for m in monitores_por_post:
+                session.delete(m)
 
+        # Paso 3: monitores que referencian la convocatoria directamente (FK convocatoria_id)
+        monitores_por_conv = session.exec(
+            select(Monitor).where(Monitor.convocatoria_id == conv_id)
+        ).all()
+        for m in monitores_por_conv:
+            session.delete(m)
+
+        # Flush: asegura que los DELETE de monitores se emitan antes de tocar postulaciones
+        session.flush()
+
+        # Paso 4: postulaciones
+        for p in postulaciones:
+            session.delete(p)
+
+        # Flush: asegura que los DELETE de postulaciones se emitan antes de tocar la convocatoria
+        session.flush()
+
+        # Paso 5: convocatoria
+        session.delete(conv)
+        session.commit()
+
+    except Exception as exc:
+        session.rollback()
+        import logging as _log
+        _log.getLogger(__name__).warning("Error eliminando convocatoria %s: %s", conv_id, exc)
+        _flash(request, "danger", "No se pudo eliminar la convocatoria. Intenta de nuevo.")
+        return RedirectResponse("/convocatorias/archivadas", status_code=303)
+
+    log_audit(
+        session,
+        user_id=user.id,
+        action="DELETE_CONVOCATORIA",
+        request=request,
+        entity_type="convocatoria",
+        entity_id=conv_id,
+        payload={"codigo": codigo_guardado},
+    )
     _flash(request, "success", "Convocatoria eliminada correctamente.")
     return RedirectResponse("/convocatorias/archivadas", status_code=303)
 
