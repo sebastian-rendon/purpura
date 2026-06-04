@@ -2145,7 +2145,7 @@ def admin_panel_post(
     peso_promedio: str = Form(default="33"),
     peso_creditos: str = Form(default="33"),
     peso_semestre: str = Form(default="34"),
-    modelo_activo: str = Form(default="gemini-2.0-flash"),
+    modelo_activo: str = Form(default="gemini-2.5-flash"),
     modo_fallback: str = Form(default=""),
     user: User = Depends(require_role(UserRole.ADMINISTRADOR)),
     session: Session = Depends(get_session),
@@ -2164,7 +2164,7 @@ def admin_panel_post(
         _flash(request, "danger", "Los valores numéricos ingresados no son válidos.")
         return RedirectResponse("/admin/panel", status_code=303)
 
-    cfg.modelo_activo = (modelo_activo.strip() or "gemini-2.0-flash")[:100]
+    cfg.modelo_activo = (modelo_activo.strip() or "gemini-2.5-flash")[:100]
     cfg.modo_fallback = modo_fallback == "on"
     cfg.updated_at = datetime.utcnow()
     session.commit()

@@ -48,15 +48,19 @@ def run_migrations() -> None:
             "peso_promedio INTEGER NOT NULL DEFAULT 33, "
             "peso_creditos INTEGER NOT NULL DEFAULT 33, "
             "peso_semestre INTEGER NOT NULL DEFAULT 34, "
-            "modelo_activo VARCHAR(100) NOT NULL DEFAULT 'gemini-2.0-flash', "
+            "modelo_activo VARCHAR(100) NOT NULL DEFAULT 'gemini-2.5-flash', "
             "modo_fallback BOOLEAN NOT NULL DEFAULT TRUE, "
             "updated_at TIMESTAMP NOT NULL DEFAULT NOW())"
         ),
         (
             "INSERT INTO configuracion_ia "
             "(umbral_confianza, peso_promedio, peso_creditos, peso_semestre, modelo_activo, modo_fallback, updated_at) "
-            "SELECT 0.5, 33, 33, 34, 'gemini-2.0-flash', TRUE, NOW() "
+            "SELECT 0.5, 33, 33, 34, 'gemini-2.5-flash', TRUE, NOW() "
             "WHERE NOT EXISTS (SELECT 1 FROM configuracion_ia LIMIT 1)"
+        ),
+        (
+            "UPDATE configuracion_ia SET modelo_activo = 'gemini-2.5-flash', updated_at = NOW() "
+            "WHERE modelo_activo = 'gemini-2.0-flash'"
         ),
     ]
     with engine.begin() as conn:

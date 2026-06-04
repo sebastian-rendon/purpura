@@ -23,7 +23,7 @@ from typing import Any, Optional
 
 LOGGER = logging.getLogger(__name__)
 
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
 _TIMEOUT_SEC = 10
 _MAX_TOKENS = 300
 _TEMPERATURE = 0.2

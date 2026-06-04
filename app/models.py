@@ -172,7 +172,7 @@ class ConfiguracionIA(SQLModel, table=True):
     peso_promedio: int = Field(default=33)
     peso_creditos: int = Field(default=33)
     peso_semestre: int = Field(default=34)
-    modelo_activo: str = Field(default="gemini-2.0-flash", max_length=100)
+    modelo_activo: str = Field(default="gemini-2.5-flash", max_length=100)
     modo_fallback: bool = Field(default=True)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
