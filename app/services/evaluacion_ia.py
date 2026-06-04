@@ -153,6 +153,7 @@ def _invocar_gemini(
         ),
     )
 
+
     resp = model.generate_content(prompt_completo)
 
     texto_resp = ""
