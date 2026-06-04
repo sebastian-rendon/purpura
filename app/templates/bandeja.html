@@ -42,13 +42,7 @@
         <option value="revisar" {% if filtro_ia == 'revisar' %}selected{% endif %}>REVISAR_MANUAL</option>
       </select>
     </div>
-    <div class="col-md-2">
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:24px;">
-        <input type="checkbox" name="warning" value="true" {% if filtro_warning %}checked{% endif %}>
-        Con warning manual
-      </label>
-    </div>
-    <div class="col-md-1" style="text-align:right;">
+    <div class="col-md-3" style="text-align:right;">
       <button type="submit" class="btn-udem" style="width:100%; margin-top:18px;">Filtrar</button>
     </div>
   </div>

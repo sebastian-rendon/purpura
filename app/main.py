@@ -274,7 +274,7 @@ def _querystring_reportes(
 @app.get("/reportes")
 def reportes(
     request: Request,
-    facultad_id: Optional[int] = Query(default=None),
+    facultad_id: Optional[str] = Query(default=None),
     desde: Optional[str] = Query(default=None),
     hasta: Optional[str] = Query(default=None),
     user: User = Depends(
@@ -282,12 +282,27 @@ def reportes(
     ),
     session: Session = Depends(get_session),
 ):
-    filtros = _filtros_reportes(user, facultad_id, desde, hasta)
+    # Parseo seguro de facultad_id — cadena vacía se trata como "sin filtro"
+    fac_id: Optional[int] = None
+    if facultad_id and facultad_id.strip():
+        try:
+            fac_id = int(facultad_id.strip())
+        except ValueError:
+            pass
+
+    # Validación de rango de fechas
+    desde_dt = _parse_date_opt(desde)
+    hasta_dt = _parse_date_opt(hasta)
+    if desde_dt and hasta_dt and hasta_dt < desde_dt:
+        _flash(request, "danger", "La fecha de fin no puede ser anterior a la fecha de inicio.")
+        return RedirectResponse("/reportes", status_code=303)
+
+    filtros = _filtros_reportes(user, fac_id, desde, hasta)
     kpis = kpis_globales(session, filtros)
     por_facultad = metricas_por_facultad(session, filtros)
     por_convocatoria = metricas_por_convocatoria(session, filtros)
     facultades = session.exec(select(Facultad).order_by(Facultad.nombre)).all()
-    qs = _querystring_reportes(facultad_id, desde, hasta)
+    qs = _querystring_reportes(fac_id, desde, hasta)
     ctx = {
         "user": user,
         "kpis": kpis,
@@ -295,7 +310,7 @@ def reportes(
         "por_convocatoria": por_convocatoria,
         "facultades": facultades,
         "filtros_form": {
-            "facultad_id": facultad_id,
+            "facultad_id": fac_id,
             "desde": desde or "",
             "hasta": hasta or "",
         },
@@ -1581,7 +1596,6 @@ def bandeja(
     request: Request,
     convocatoria: Optional[str] = None,
     estado: str = "activas",
-    warning: Optional[str] = None,
     ia: Optional[str] = None,
     user: User = Depends(
         require_role(UserRole.COORDINADOR, UserRole.ADMINISTRADOR)
@@ -1631,14 +1645,6 @@ def bandeja(
             except ValueError:
                 pass
 
-        if warning == "true":
-            stmt = stmt.where(
-                sa_text(
-                    "postulaciones.historial_estados @> "
-                    "'[{\"manual_review\": true}]'::jsonb"
-                )
-            )
-
         ia_filtro = (ia or "").lower()
         _IA_MAP = {
             "apto": "AUTO_APTO",
@@ -1681,7 +1687,6 @@ def bandeja(
         "convocatorias_filtro": convs_visibles,
         "filtro_estado": (estado or "activas").lower(),
         "filtro_convocatoria": convocatoria or "",
-        "filtro_warning": warning == "true",
         "filtro_ia": (ia or "").lower(),
     }
     ctx.update(_notif_ctx_user(session, user))

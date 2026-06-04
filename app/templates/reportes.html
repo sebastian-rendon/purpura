@@ -23,7 +23,10 @@
     {% endif %}
   {% endwith %}
 
-  <form method="get" action="/reportes" class="udem-card" style="margin-bottom:18px;">
+  <form id="form-reportes" method="get" action="/reportes" class="udem-card" style="margin-bottom:18px;">
+    <div id="error-fechas" style="display:none; color:var(--udem-rojo); font-size:13px; font-weight:600; margin-bottom:10px;">
+      La fecha de fin no puede ser anterior a la fecha de inicio.
+    </div>
     <div class="row g-3" style="align-items:end;">
       <div class="col-md-4">
         <label for="filtro-facultad">Facultad</label>
@@ -175,4 +178,22 @@
   </div>
   {% endif %}
 </main>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("form-reportes");
+  const errorDiv = document.getElementById("error-fechas");
+  if (!form) return;
+  form.addEventListener("submit", (e) => {
+    const desde = form.querySelector("[name='desde']").value;
+    const hasta = form.querySelector("[name='hasta']").value;
+    if (desde && hasta && hasta < desde) {
+      e.preventDefault();
+      errorDiv.style.display = "block";
+    } else {
+      errorDiv.style.display = "none";
+    }
+  });
+});
+</script>
 {% endblock %}
