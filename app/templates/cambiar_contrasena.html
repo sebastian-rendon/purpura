@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Cambiar contraseña · Sistema de Monitorías UdeM{% endblock %}
+
+{% block content %}
+<div class="contenedor login-wrap">
+  <h1 class="login-titulo">Cambia tu contraseña</h1>
+  <p class="login-subtitulo">
+    Estás usando una contraseña temporal. Por seguridad, crea una nueva antes de continuar.
+  </p>
+
+  <div class="login-card-con-tabs">
+    {% if error %}
+      <div class="alert alert-danger" style="margin: 16px 32px;">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/cambiar-contrasena" class="login-form">
+      <div class="form-group">
+        <label for="nueva_contrasena">Nueva contraseña</label>
+        <input type="password" name="nueva_contrasena" id="nueva_contrasena"
+               placeholder="Mínimo 8 caracteres" required autofocus>
+      </div>
+
+      <div class="form-group">
+        <label for="confirmar_contrasena">Confirmar nueva contraseña</label>
+        <input type="password" name="confirmar_contrasena" id="confirmar_contrasena"
+               placeholder="Repite la contraseña" required>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:8px;">
+        <a href="/dashboard" class="btn-udem-outline">Cancelar</a>
+        <button type="submit" class="btn-login">Guardar contraseña</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

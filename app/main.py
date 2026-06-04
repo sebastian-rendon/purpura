@@ -412,6 +412,8 @@ def login_post(
     session.add(user)
     session.commit()
     log_audit(session, user_id=user.id, action="LOGIN", request=request)
+    if user.contrasena_temporal:
+        return RedirectResponse("/cambiar-contrasena", status_code=303)
     return RedirectResponse("/dashboard", status_code=303)
 
 
@@ -504,6 +506,7 @@ def recuperar_contrasena_post(
     alphabet = string.ascii_letters + string.digits
     nueva_password = "".join(secrets.choice(alphabet) for _ in range(10))
     user.password_hash = hash_password(nueva_password)
+    user.contrasena_temporal = True
     user.updated_at = datetime.utcnow()
     session.add(user)
     session.commit()
@@ -514,6 +517,57 @@ def recuperar_contrasena_post(
         " — Cámbiala después de iniciar sesión."
     )
     return templates.TemplateResponse(request, "login.html", ctx, status_code=200)
+
+
+@app.get("/cambiar-contrasena")
+def cambiar_contrasena_get(
+    request: Request,
+    user: User = Depends(require_login),
+):
+    return templates.TemplateResponse(
+        request,
+        "cambiar_contrasena.html",
+        {"user": user, "error": None},
+    )
+
+
+@app.post("/cambiar-contrasena")
+def cambiar_contrasena_post(
+    request: Request,
+    nueva_contrasena: str = Form(...),
+    confirmar_contrasena: str = Form(...),
+    user: User = Depends(require_login),
+    session: Session = Depends(get_session),
+):
+    def render_error(msg: str):
+        return templates.TemplateResponse(
+            request,
+            "cambiar_contrasena.html",
+            {"user": user, "error": msg},
+            status_code=200,
+        )
+
+    if nueva_contrasena != confirmar_contrasena:
+        return render_error("Las contraseñas no coinciden.")
+    if len(nueva_contrasena) < 8:
+        return render_error("La contraseña debe tener al menos 8 caracteres.")
+
+    user.password_hash = hash_password(nueva_contrasena)
+    user.contrasena_temporal = False
+    user.updated_at = datetime.utcnow()
+    session.add(user)
+    session.commit()
+
+    log_audit(
+        session,
+        user_id=user.id,
+        action="CAMBIAR_CONTRASENA",
+        request=request,
+        entity_type="user",
+        entity_id=user.id,
+    )
+    _flash(request, "success", "Contraseña actualizada correctamente.")
+    return RedirectResponse("/dashboard", status_code=303)
 
 
 @app.post("/logout")

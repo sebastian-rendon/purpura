@@ -32,6 +32,7 @@ class User(SQLModel, table=True):
     full_name: str = Field(max_length=255)
     role: UserRole = Field(index=True)
     is_active: bool = Field(default=True)
+    contrasena_temporal: bool = Field(default=False)
     last_login_at: Optional[datetime] = None
     promedio_acumulado: Optional[float] = Field(default=None)
     creditos_aprobados: Optional[int] = Field(default=None)
