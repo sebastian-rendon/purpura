@@ -22,9 +22,16 @@
       </div>
 
       <div class="col-md-6">
-        <label for="facultad">Facultad (texto libre)</label>
-        <input type="text" class="form-control" id="facultad" name="facultad" maxlength="255"
-               value="{{ form.facultad or '' }}" required>
+        <label for="facultad_id">Facultad</label>
+        <select class="form-select" id="facultad_id" name="facultad_id" required>
+          <option value="" disabled {% if not form.facultad_id %}selected{% endif %}>Seleccione…</option>
+          {% for f in facultades %}
+          <option value="{{ f.id }}"
+              {% if form.facultad_id|string == f.id|string %}selected{% endif %}>
+              {{ f.nombre }}
+          </option>
+          {% endfor %}
+        </select>
       </div>
       <div class="col-md-6">
         <label for="asignatura">Asignatura</label>
@@ -55,23 +62,23 @@
     </div>
 
     <fieldset style="border:1px solid var(--udem-borde); border-radius:var(--radius-sm); padding:14px 18px; margin-top:20px;">
-      <legend style="float:none; width:auto; padding:0 8px; font-size:12px; color:var(--udem-gris-texto); text-transform:uppercase; letter-spacing:0.5px;">Requisitos (opcional)</legend>
+      <legend style="float:none; width:auto; padding:0 8px; font-size:12px; color:var(--udem-gris-texto); text-transform:uppercase; letter-spacing:0.5px;">Requisitos</legend>
       <div class="row g-3">
         <div class="col-md-4">
           <label for="promedio_minimo">Promedio mínimo</label>
           <input type="number" class="form-control" id="promedio_minimo" name="promedio_minimo"
                  step="0.1" min="0" max="5"
-                 value="{{ form.promedio_minimo or '' }}">
+                 value="{{ form.promedio_minimo or '' }}" required>
         </div>
         <div class="col-md-4">
           <label for="creditos_minimos">Créditos mínimos</label>
           <input type="number" class="form-control" id="creditos_minimos" name="creditos_minimos"
-                 min="0" value="{{ form.creditos_minimos or '' }}">
+                 min="0" value="{{ form.creditos_minimos or '' }}" required>
         </div>
         <div class="col-md-4">
           <label for="semestre_minimo">Semestre mínimo</label>
           <input type="number" class="form-control" id="semestre_minimo" name="semestre_minimo"
-                 min="1" max="12" value="{{ form.semestre_minimo or '' }}">
+                 min="1" max="12" value="{{ form.semestre_minimo or '' }}" required>
         </div>
       </div>
     </fieldset>

@@ -747,11 +747,13 @@ def convocatorias_crear_get(
     user: User = Depends(
         require_role(UserRole.COORDINADOR, UserRole.ADMINISTRADOR)
     ),
+    session: Session = Depends(get_session),
 ):
+    facultades = session.exec(select(Facultad).order_by(Facultad.nombre)).all()
     return templates.TemplateResponse(
         request,
         "convocatorias_form.html",
-        {"user": user, "error": None, "form": {}},
+        {"user": user, "error": None, "form": {}, "facultades": facultades},
     )
 
 
@@ -770,31 +772,32 @@ def convocatorias_crear_post(
     codigo: str = Form(...),
     titulo: str = Form(...),
     descripcion: Optional[str] = Form(None),
-    facultad: str = Form(...),
+    facultad_id: str = Form(default=""),
     asignatura: str = Form(...),
-    cupos: int = Form(...),
+    cupos: str = Form(default=""),
     fecha_apertura: str = Form(...),
     fecha_cierre: str = Form(...),
-    promedio_minimo: Optional[str] = Form(None),
-    creditos_minimos: Optional[str] = Form(None),
-    semestre_minimo: Optional[str] = Form(None),
+    promedio_minimo: str = Form(default=""),
+    creditos_minimos: str = Form(default=""),
+    semestre_minimo: str = Form(default=""),
     user: User = Depends(
         require_role(UserRole.COORDINADOR, UserRole.ADMINISTRADOR)
     ),
     session: Session = Depends(get_session),
 ):
+    facultades = session.exec(select(Facultad).order_by(Facultad.nombre)).all()
     form_data = {
         "codigo": codigo,
         "titulo": titulo,
         "descripcion": descripcion or "",
-        "facultad": facultad,
+        "facultad_id": facultad_id,
         "asignatura": asignatura,
         "cupos": cupos,
         "fecha_apertura": fecha_apertura,
         "fecha_cierre": fecha_cierre,
-        "promedio_minimo": promedio_minimo or "",
-        "creditos_minimos": creditos_minimos or "",
-        "semestre_minimo": semestre_minimo or "",
+        "promedio_minimo": promedio_minimo,
+        "creditos_minimos": creditos_minimos,
+        "semestre_minimo": semestre_minimo,
     }
 
     def render_error(msg: str):
@@ -805,6 +808,7 @@ def convocatorias_crear_post(
                 "user": user,
                 "error": msg,
                 "form": form_data,
+                "facultades": facultades,
             },
             status_code=200,
         )
@@ -815,8 +819,24 @@ def convocatorias_crear_post(
             "El código debe seguir el formato MON-AAAA-NN-XXXX (ej. MON-2026-01-CALC1)."
         )
 
-    if cupos <= 0:
-        return render_error("Los cupos deben ser mayores a 0.")
+    # Cupos — parsing manual para evitar 422 JSON
+    try:
+        cupos_int = int(cupos.strip())
+        if cupos_int <= 0:
+            return render_error("Los cupos deben ser mayores a 0.")
+    except (ValueError, AttributeError):
+        return render_error("El campo 'cupos' debe ser un número entero mayor que 0.")
+
+    # Facultad — lookup por ID
+    if not facultad_id.strip():
+        return render_error("Debes seleccionar una facultad.")
+    try:
+        fac_id_int = int(facultad_id.strip())
+    except ValueError:
+        return render_error("Facultad no válida.")
+    fac_obj = session.exec(select(Facultad).where(Facultad.id == fac_id_int)).first()
+    if fac_obj is None:
+        return render_error("La facultad seleccionada no existe.")
 
     try:
         apertura_dt = datetime.fromisoformat(fecha_apertura)
@@ -835,7 +855,7 @@ def convocatorias_crear_post(
     if existing is not None:
         return render_error(f"Ya existe una convocatoria con el código {codigo_norm}.")
 
-    requisitos: dict = {}
+    # Requisitos obligatorios
     try:
         prom = _parse_optional_number(promedio_minimo)
         cred = _parse_optional_number(creditos_minimos)
@@ -843,20 +863,27 @@ def convocatorias_crear_post(
     except ValueError:
         return render_error("Los requisitos numéricos no son válidos.")
 
-    if prom is not None:
-        requisitos["promedio_minimo"] = prom
-    if cred is not None:
-        requisitos["creditos_minimos"] = int(cred)
-    if sem is not None:
-        requisitos["semestre_minimo"] = int(sem)
+    if prom is None:
+        return render_error("El promedio mínimo es obligatorio.")
+    if cred is None:
+        return render_error("Los créditos mínimos son obligatorios.")
+    if sem is None:
+        return render_error("El semestre mínimo es obligatorio.")
+
+    requisitos = {
+        "promedio_minimo": prom,
+        "creditos_minimos": int(cred),
+        "semestre_minimo": int(sem),
+    }
 
     conv = Convocatoria(
         codigo=codigo_norm,
         titulo=titulo.strip(),
         descripcion=(descripcion.strip() if descripcion else None),
-        facultad=facultad.strip(),
+        facultad=fac_obj.nombre,
+        facultad_id=fac_id_int,
         asignatura=asignatura.strip(),
-        cupos=cupos,
+        cupos=cupos_int,
         fecha_apertura=apertura_dt,
         fecha_cierre=cierre_dt,
         requisitos=requisitos,
@@ -1053,10 +1080,11 @@ def convocatorias_editar_get(
             status_code=403,
             detail="Solo el coordinador que creó la convocatoria puede editarla.",
         )
+    facultades = session.exec(select(Facultad).order_by(Facultad.nombre)).all()
     form = {
         "titulo": conv.titulo,
         "descripcion": conv.descripcion or "",
-        "facultad": conv.facultad,
+        "facultad_id": conv.facultad_id,
         "asignatura": conv.asignatura,
         "cupos": conv.cupos,
         "fecha_apertura": conv.fecha_apertura.strftime("%Y-%m-%dT%H:%M"),
@@ -1073,6 +1101,7 @@ def convocatorias_editar_get(
             "convocatoria": conv,
             "form": form,
             "error": None,
+            "facultades": facultades,
         },
     )
 
@@ -1083,22 +1112,20 @@ def convocatorias_editar_post(
     conv_id: uuid.UUID,
     titulo: str = Form(...),
     descripcion: Optional[str] = Form(None),
-    facultad: str = Form(...),
+    facultad_id: str = Form(default=""),
     asignatura: str = Form(...),
-    cupos: int = Form(...),
+    cupos: str = Form(default=""),
     fecha_apertura: str = Form(...),
     fecha_cierre: str = Form(...),
-    promedio_minimo: Optional[str] = Form(None),
-    creditos_minimos: Optional[str] = Form(None),
-    semestre_minimo: Optional[str] = Form(None),
+    promedio_minimo: str = Form(default=""),
+    creditos_minimos: str = Form(default=""),
+    semestre_minimo: str = Form(default=""),
     user: User = Depends(
         require_role(UserRole.COORDINADOR, UserRole.ADMINISTRADOR)
     ),
     session: Session = Depends(get_session),
 ):
-    conv, _creator, facultad_obj, materia_obj = _load_convocatoria_or_404(
-        session, conv_id
-    )
+    conv, _creator, _fac, _mat = _load_convocatoria_or_404(session, conv_id)
     if conv.status != ConvocatoriaStatus.BORRADOR:
         _flash(
             request,
@@ -1112,17 +1139,18 @@ def convocatorias_editar_post(
             detail="Solo el coordinador que creó la convocatoria puede editarla.",
         )
 
+    facultades = session.exec(select(Facultad).order_by(Facultad.nombre)).all()
     form_data = {
         "titulo": titulo,
         "descripcion": descripcion or "",
-        "facultad": facultad,
+        "facultad_id": facultad_id,
         "asignatura": asignatura,
         "cupos": cupos,
         "fecha_apertura": fecha_apertura,
         "fecha_cierre": fecha_cierre,
-        "promedio_minimo": promedio_minimo or "",
-        "creditos_minimos": creditos_minimos or "",
-        "semestre_minimo": semestre_minimo or "",
+        "promedio_minimo": promedio_minimo,
+        "creditos_minimos": creditos_minimos,
+        "semestre_minimo": semestre_minimo,
     }
 
     def render_error(msg: str):
@@ -1134,12 +1162,30 @@ def convocatorias_editar_post(
                 "convocatoria": conv,
                 "form": form_data,
                 "error": msg,
+                "facultades": facultades,
             },
             status_code=200,
         )
 
-    if cupos <= 0:
-        return render_error("Los cupos deben ser mayores a 0.")
+    # Cupos — parsing manual para evitar 422 JSON
+    try:
+        cupos_int = int(cupos.strip())
+        if cupos_int <= 0:
+            return render_error("Los cupos deben ser mayores a 0.")
+    except (ValueError, AttributeError):
+        return render_error("El campo 'cupos' debe ser un número entero mayor que 0.")
+
+    # Facultad — lookup por ID
+    if not facultad_id.strip():
+        return render_error("Debes seleccionar una facultad.")
+    try:
+        fac_id_int = int(facultad_id.strip())
+    except ValueError:
+        return render_error("Facultad no válida.")
+    fac_obj = session.exec(select(Facultad).where(Facultad.id == fac_id_int)).first()
+    if fac_obj is None:
+        return render_error("La facultad seleccionada no existe.")
+
     try:
         apertura_dt = datetime.fromisoformat(fecha_apertura)
         cierre_dt = datetime.fromisoformat(fecha_cierre)
@@ -1150,34 +1196,34 @@ def convocatorias_editar_post(
             "La fecha de cierre debe ser posterior a la fecha de apertura."
         )
 
-    requisitos: dict = dict(conv.requisitos or {})
+    # Requisitos obligatorios
     try:
         prom = _parse_optional_number(promedio_minimo)
         cred = _parse_optional_number(creditos_minimos)
         sem = _parse_optional_number(semestre_minimo)
     except ValueError:
         return render_error("Los requisitos numéricos no son válidos.")
-    if prom is not None:
-        requisitos["promedio_minimo"] = prom
-    else:
-        requisitos.pop("promedio_minimo", None)
-    if cred is not None:
-        requisitos["creditos_minimos"] = int(cred)
-    else:
-        requisitos.pop("creditos_minimos", None)
-    if sem is not None:
-        requisitos["semestre_minimo"] = int(sem)
-    else:
-        requisitos.pop("semestre_minimo", None)
+
+    if prom is None:
+        return render_error("El promedio mínimo es obligatorio.")
+    if cred is None:
+        return render_error("Los créditos mínimos son obligatorios.")
+    if sem is None:
+        return render_error("El semestre mínimo es obligatorio.")
 
     conv.titulo = titulo.strip()
     conv.descripcion = descripcion.strip() if descripcion else None
-    conv.facultad = facultad.strip()
+    conv.facultad = fac_obj.nombre
+    conv.facultad_id = fac_id_int
     conv.asignatura = asignatura.strip()
-    conv.cupos = cupos
+    conv.cupos = cupos_int
     conv.fecha_apertura = apertura_dt
     conv.fecha_cierre = cierre_dt
-    conv.requisitos = requisitos
+    conv.requisitos = {
+        "promedio_minimo": prom,
+        "creditos_minimos": int(cred),
+        "semestre_minimo": int(sem),
+    }
     conv.updated_at = datetime.utcnow()
     session.add(conv)
     session.commit()
