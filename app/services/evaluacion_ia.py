@@ -25,7 +25,7 @@ LOGGER = logging.getLogger(__name__)
 
 GEMINI_MODEL = "gemini-2.5-flash"
 _TIMEOUT_SEC = 10
-_MAX_TOKENS = 300
+_MAX_TOKENS = 512
 _TEMPERATURE = 0.2
 
 _PROMPT_SISTEMA = (
@@ -44,6 +44,8 @@ _PROMPT_SISTEMA = (
     '"confianza": 0.0-1.0, '
     '"justificacion": "explicación breve en español, máx 200 caracteres"}'
 )
+
+_PLACEHOLDER_JUSTIFICACION = "El modelo no proporcionó justificación."
 
 
 def _utcnow_iso() -> str:
@@ -129,6 +131,9 @@ _DECISION_LLM_A_INTERNA = {
 def _invocar_gemini(
     postulacion, convocatoria, estudiante, modelo: str = GEMINI_MODEL
 ) -> dict[str, Any]:
+    print("=== LLAMANDO A GEMINI ===")
+    print("API KEY presente:", bool(os.getenv("GOOGLE_API_KEY")))
+
     api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         raise RuntimeError("GOOGLE_API_KEY no configurada")
@@ -155,9 +160,11 @@ def _invocar_gemini(
         texto_resp = resp.text.strip()
 
     print("Respuesta RAW Gemini:", texto_resp)
-    LOGGER.debug("Respuesta RAW Gemini: %s", texto_resp)
+    LOGGER.warning("Respuesta RAW Gemini: %s", texto_resp)
 
     parsed = _parsear_json_defensivo(texto_resp)
+    print("JSON parseado:", parsed)
+    LOGGER.warning("JSON parseado: %s", parsed)
 
     decision_llm = parsed.get("decision") or "REVISAR_MANUAL"
     if not isinstance(decision_llm, str):
@@ -176,7 +183,7 @@ def _invocar_gemini(
     if justificacion_raw and isinstance(justificacion_raw, str) and justificacion_raw.strip():
         justificacion = justificacion_raw.strip()[:300]
     else:
-        justificacion = "El modelo no proporcionó justificación."
+        justificacion = _PLACEHOLDER_JUSTIFICACION
 
     tokens_in = 0
     tokens_out = 0
@@ -197,18 +204,33 @@ def _invocar_gemini(
 
 
 def _cache_valido(postulacion) -> Optional[dict[str, Any]]:
-    """Devuelve el resultado cacheado si es válido para reusar, o None.
+    """Devuelve el resultado cacheado si es reutilizable, o None.
 
-    Se considera válido si tiene decision_sugerida distinta de REVISAR_MANUAL
-    (los resultados REVISAR_MANUAL son inciertos y vale la pena reevaluar).
+    Un resultado se considera válido para caché si:
+    - decision_sugerida es AUTO_APTO o AUTO_NO_APTO (no REVISAR_MANUAL)
+    - confianza > 0.5 (no el default de parseo fallido)
+    - justificacion existe y no es el placeholder de error
     """
     cached = getattr(postulacion, "evaluacion_ia_ultima", None)
     if not cached or not isinstance(cached, dict):
         return None
+
     decision = cached.get("decision_sugerida", "")
-    if decision in ("AUTO_APTO", "AUTO_NO_APTO") and cached.get("justificacion"):
-        return cached
-    return None
+    if decision not in ("AUTO_APTO", "AUTO_NO_APTO"):
+        return None
+
+    confianza = cached.get("confianza", 0)
+    try:
+        if float(confianza) <= 0.5:
+            return None
+    except (TypeError, ValueError):
+        return None
+
+    justificacion = cached.get("justificacion", "")
+    if not justificacion or justificacion == _PLACEHOLDER_JUSTIFICACION:
+        return None
+
+    return cached
 
 
 def evaluar_postulacion(
@@ -220,25 +242,32 @@ def evaluar_postulacion(
 ) -> dict[str, Any]:
     """Evalúa una postulación consultando a Gemini.
 
-    Si la postulación ya tiene un resultado cacheado con decision != REVISAR_MANUAL
-    y ``forzar_reevaluacion`` es False, retorna el caché sin llamar a Gemini.
+    Usa caché solo si existe un resultado válido (decision != REVISAR_MANUAL,
+    confianza > 0.5, justificacion real) y forzar_reevaluacion es False.
 
     ``config`` es un dict opcional con claves:
       - modelo_activo: str  (default GEMINI_MODEL)
-      - umbral_confianza: float  (default 0.5; resultado con confianza < umbral → REVISAR_MANUAL)
+      - umbral_confianza: float  (default 0.5)
       - modo_fallback: bool  (True → REVISAR_MANUAL en error; False → AUTO_NO_APTO)
 
     Nunca lanza excepción al caller.
     """
+    print("=== INICIO EVALUACION IA ===")
+    print("Cache actual:", getattr(postulacion, "evaluacion_ia_ultima", None))
+    print("forzar_reevaluacion:", forzar_reevaluacion)
+
     if not forzar_reevaluacion:
         cached = _cache_valido(postulacion)
         if cached is not None:
+            print("=== USANDO CACHE ===", cached.get("decision_sugerida"))
             LOGGER.debug(
                 "Cache hit para postulacion %s — decision: %s",
                 getattr(postulacion, "id", "?"),
                 cached.get("decision_sugerida"),
             )
             return cached
+
+    print("Llamando a Gemini...")
 
     cfg = config or {}
     modelo = cfg.get("modelo_activo") or GEMINI_MODEL
@@ -255,13 +284,16 @@ def evaluar_postulacion(
                 f"[Confianza {llm_result['confianza']:.2f} < umbral {umbral:.2f}] "
                 + llm_result.get("justificacion", "")
             )
-        return {**base, **llm_result}
+        resultado = {**base, **llm_result}
+        print("=== RESULTADO FINAL ===", resultado.get("decision_sugerida"), resultado.get("confianza"))
+        return resultado
     except Exception as exc:
         LOGGER.warning(
             "Evaluación IA cae en fallback por %s: %s",
             type(exc).__name__,
             exc,
         )
+        print("=== FALLBACK por excepcion:", type(exc).__name__, exc)
         decision_fallback = "REVISAR_MANUAL" if modo_fallback else "AUTO_NO_APTO"
         return {
             **base,
