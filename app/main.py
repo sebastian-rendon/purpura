@@ -52,6 +52,7 @@ from app.auth import (
 from app.config import get_settings
 from app.db import get_session, init_db, run_migrations
 from app.models import (
+    ConfiguracionIA,
     Convocatoria,
     ConvocatoriaStatus,
     Facultad,
@@ -137,6 +138,17 @@ def _notif_ctx_user(session: Session, user: User) -> dict:
 
 
 CODIGO_REGEX = re.compile(r"^MON-\d{4}-\d{2}-[A-Z0-9]+$")
+
+
+def _get_config_ia(session: Session) -> dict:
+    cfg = session.exec(select(ConfiguracionIA)).first()
+    if cfg is None:
+        return {}
+    return {
+        "modelo_activo": cfg.modelo_activo,
+        "umbral_confianza": cfg.umbral_confianza,
+        "modo_fallback": cfg.modo_fallback,
+    }
 
 
 @app.on_event("startup")
@@ -1349,9 +1361,11 @@ def _registrar_evaluacion_ia(
     estudiante: User,
     user: User,
     trigger: str,
+    session: Optional[Session] = None,
 ) -> dict:
     """Ejecuta evaluación y persiste en el objeto. Caller hace commit."""
-    resultado = evaluar_postulacion(postulacion, convocatoria, estudiante)
+    config = _get_config_ia(session) if session is not None else {}
+    resultado = evaluar_postulacion(postulacion, convocatoria, estudiante, config=config)
     postulacion.evaluacion_ia_ultima = resultado
     historial = list(postulacion.historial_estados or [])
     historial.append(
@@ -1447,7 +1461,7 @@ def postular_post(
     session.add(postulacion)
     session.flush()
 
-    _registrar_evaluacion_ia(postulacion, conv, user, user, trigger="postular")
+    _registrar_evaluacion_ia(postulacion, conv, user, user, trigger="postular", session=session)
 
     notif = Notificacion(
         usuario_id=conv.created_by,
@@ -1778,7 +1792,7 @@ def postulacion_transicionar(
 
     if post.estado == POST_EN_REVISION:
         _registrar_evaluacion_ia(
-            post, conv, estudiante, user, trigger="iniciar_revision"
+            post, conv, estudiante, user, trigger="iniciar_revision", session=session
         )
 
     session.add(post)
@@ -2075,6 +2089,89 @@ def mis_monitorias(
     ctx = {"user": user, "monitorias": monitorias}
     ctx.update(_notif_ctx_user(session, user))
     return templates.TemplateResponse(request, "mis_monitorias.html", ctx)
+
+
+@app.get("/admin/panel")
+def admin_panel_get(
+    request: Request,
+    user: User = Depends(require_role(UserRole.ADMINISTRADOR)),
+    session: Session = Depends(get_session),
+):
+    cfg = session.exec(select(ConfiguracionIA)).first()
+    if cfg is None:
+        cfg = ConfiguracionIA()
+    ctx = {"user": user, "cfg": cfg}
+    ctx.update(_notif_ctx_user(session, user))
+    return templates.TemplateResponse(request, "panel.html", ctx)
+
+
+@app.post("/admin/panel")
+def admin_panel_post(
+    request: Request,
+    umbral_confianza: str = Form(default="0.5"),
+    peso_promedio: str = Form(default="33"),
+    peso_creditos: str = Form(default="33"),
+    peso_semestre: str = Form(default="34"),
+    modelo_activo: str = Form(default="gemini-2.0-flash"),
+    modo_fallback: str = Form(default=""),
+    user: User = Depends(require_role(UserRole.ADMINISTRADOR)),
+    session: Session = Depends(get_session),
+):
+    cfg = session.exec(select(ConfiguracionIA)).first()
+    if cfg is None:
+        cfg = ConfiguracionIA()
+        session.add(cfg)
+
+    try:
+        cfg.umbral_confianza = max(0.0, min(1.0, float(umbral_confianza.strip() or "0.5")))
+        cfg.peso_promedio = max(0, min(100, int(peso_promedio.strip() or "33")))
+        cfg.peso_creditos = max(0, min(100, int(peso_creditos.strip() or "33")))
+        cfg.peso_semestre = max(0, min(100, int(peso_semestre.strip() or "34")))
+    except (ValueError, TypeError):
+        _flash(request, "danger", "Los valores numéricos ingresados no son válidos.")
+        return RedirectResponse("/admin/panel", status_code=303)
+
+    cfg.modelo_activo = (modelo_activo.strip() or "gemini-2.0-flash")[:100]
+    cfg.modo_fallback = modo_fallback == "on"
+    cfg.updated_at = datetime.utcnow()
+    session.commit()
+
+    _flash(request, "success", "Configuración actualizada correctamente.")
+    return RedirectResponse("/admin/panel", status_code=303)
+
+
+@app.post("/convocatorias/{conv_id}/eliminar")
+def convocatorias_eliminar(
+    request: Request,
+    conv_id: uuid.UUID,
+    user: User = Depends(require_role(UserRole.ADMINISTRADOR)),
+    session: Session = Depends(get_session),
+):
+    conv = session.exec(select(Convocatoria).where(Convocatoria.id == conv_id)).first()
+    if conv is None:
+        raise HTTPException(status_code=404, detail="Convocatoria no encontrada")
+    if conv.status != ConvocatoriaStatus.ARCHIVADA:
+        _flash(request, "danger", "Solo se pueden eliminar convocatorias archivadas.")
+        return RedirectResponse(f"/convocatorias/{conv_id}", status_code=303)
+
+    from app.models import Monitor
+    monitores = session.exec(select(Monitor).where(Monitor.convocatoria_id == conv_id)).all()
+    for m in monitores:
+        session.delete(m)
+
+    postulaciones = session.exec(select(Postulacion).where(Postulacion.convocatoria_id == conv_id)).all()
+    for p in postulaciones:
+        session.delete(p)
+
+    session.delete(conv)
+    session.commit()
+
+    log_audit(session, user_id=user.id, action="DELETE_CONVOCATORIA", request=request,
+              entity_type="convocatoria", entity_id=conv_id,
+              payload={"codigo": conv.codigo})
+
+    _flash(request, "success", "Convocatoria eliminada correctamente.")
+    return RedirectResponse("/convocatorias/archivadas", status_code=303)
 
 
 @app.get("/notificaciones")

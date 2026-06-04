@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Panel de administración · Sistema de Monitorías UdeM{% endblock %}
+
+{% block content %}
+<h1 class="udem-section-title">Panel de administración</h1>
+<p class="udem-section-subtitle">Configuración de los parámetros de evaluación automática por IA.</p>
+
+<div class="udem-card" style="max-width:640px;">
+  <form method="post" action="/admin/panel" novalidate>
+
+    <h2 style="font-size:15px; font-weight:700; color:var(--udem-negro); margin:0 0 18px;">
+      Parámetros del motor de IA
+    </h2>
+
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label for="modelo_activo">Modelo IA activo</label>
+        <input type="text" class="form-control" id="modelo_activo" name="modelo_activo"
+               maxlength="100" value="{{ cfg.modelo_activo }}" required>
+        <div class="form-text">Ej: gemini-2.0-flash</div>
+      </div>
+      <div class="col-md-6">
+        <label for="umbral_confianza">Umbral de confianza mínima (0.0 – 1.0)</label>
+        <input type="number" class="form-control" id="umbral_confianza" name="umbral_confianza"
+               step="0.01" min="0" max="1"
+               value="{{ cfg.umbral_confianza }}" required>
+        <div class="form-text">Por debajo de este valor la sugerencia pasa a "revisar manual".</div>
+      </div>
+    </div>
+
+    <hr style="margin:20px 0; border-color:var(--udem-borde);">
+
+    <h2 style="font-size:15px; font-weight:700; color:var(--udem-negro); margin:0 0 14px;">
+      Pesos de criterios de evaluación (%)
+    </h2>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label for="peso_promedio">Peso del promedio</label>
+        <input type="number" class="form-control" id="peso_promedio" name="peso_promedio"
+               min="0" max="100" value="{{ cfg.peso_promedio }}" required>
+      </div>
+      <div class="col-md-4">
+        <label for="peso_creditos">Peso de los créditos</label>
+        <input type="number" class="form-control" id="peso_creditos" name="peso_creditos"
+               min="0" max="100" value="{{ cfg.peso_creditos }}" required>
+      </div>
+      <div class="col-md-4">
+        <label for="peso_semestre">Peso del semestre</label>
+        <input type="number" class="form-control" id="peso_semestre" name="peso_semestre"
+               min="0" max="100" value="{{ cfg.peso_semestre }}" required>
+      </div>
+    </div>
+    <p style="font-size:12px; color:var(--udem-gris-texto); margin:8px 0 0;">
+      Los pesos no tienen que sumar 100; son relativos entre sí.
+    </p>
+
+    <hr style="margin:20px 0; border-color:var(--udem-borde);">
+
+    <div class="form-check" style="margin-bottom:18px;">
+      <input class="form-check-input" type="checkbox" name="modo_fallback" id="modo_fallback"
+             {% if cfg.modo_fallback %}checked{% endif %}>
+      <label class="form-check-label" for="modo_fallback">
+        <strong>Modo fallback activado</strong>
+        <span style="display:block; font-size:12px; color:var(--udem-gris-texto);">
+          Si está activo, cuando la IA falla se marca la postulación como "revisar manual".
+          Si está desactivado, se marca como "no apto".
+        </span>
+      </label>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:8px;">
+      <a href="/dashboard" class="btn-udem-outline">Cancelar</a>
+      <button type="submit" class="btn-udem">Guardar configuración</button>
+    </div>
+  </form>
+</div>
+
+<div class="udem-card" style="max-width:640px; margin-top:18px;">
+  <h2 style="font-size:14px; font-weight:700; color:var(--udem-gris-texto); margin:0 0 10px; text-transform:uppercase; letter-spacing:0.05em;">
+    Valores actuales en BD
+  </h2>
+  <table class="udem-table" style="font-size:13px;">
+    <tr><td>Modelo activo</td><td><code>{{ cfg.modelo_activo }}</code></td></tr>
+    <tr><td>Umbral de confianza</td><td>{{ cfg.umbral_confianza }}</td></tr>
+    <tr><td>Peso promedio</td><td>{{ cfg.peso_promedio }} %</td></tr>
+    <tr><td>Peso créditos</td><td>{{ cfg.peso_creditos }} %</td></tr>
+    <tr><td>Peso semestre</td><td>{{ cfg.peso_semestre }} %</td></tr>
+    <tr><td>Modo fallback</td><td>{{ 'Activado' if cfg.modo_fallback else 'Desactivado' }}</td></tr>
+    <tr><td>Última actualización</td><td style="font-size:12px; color:var(--udem-gris-texto);">
+      {{ cfg.updated_at.strftime('%d %b %Y · %H:%M') if cfg.updated_at else '—' }}
+    </td></tr>
+  </table>
+</div>
+{% endblock %}

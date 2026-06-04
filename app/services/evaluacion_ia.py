@@ -193,7 +193,9 @@ _DECISION_LLM_A_INTERNA = {
 }
 
 
-def _invocar_gemini(postulacion, convocatoria, estudiante) -> dict[str, Any]:
+def _invocar_gemini(
+    postulacion, convocatoria, estudiante, modelo: str = GEMINI_MODEL
+) -> dict[str, Any]:
     api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         raise RuntimeError("GOOGLE_API_KEY no configurada")
@@ -206,7 +208,7 @@ def _invocar_gemini(postulacion, convocatoria, estudiante) -> dict[str, Any]:
     prompt_completo = _PROMPT_SISTEMA + "\n\n" + user_message
 
     model = genai.GenerativeModel(
-        model_name=GEMINI_MODEL,
+        model_name=modelo,
         generation_config=genai.types.GenerationConfig(
             max_output_tokens=_MAX_TOKENS,
             temperature=_TEMPERATURE,
@@ -252,23 +254,33 @@ def _invocar_gemini(postulacion, convocatoria, estudiante) -> dict[str, Any]:
         "modo": "llm",
         "justificacion": justificacion,
         "checks": [],
-        "modelo": GEMINI_MODEL,
+        "modelo": modelo,
         "tokens_in": tokens_in,
         "tokens_out": tokens_out,
     }
 
 
 def evaluar_postulacion(
-    postulacion, convocatoria, estudiante
+    postulacion, convocatoria, estudiante, config: Optional[dict] = None
 ) -> dict[str, Any]:
     """Evalúa una postulación y retorna un dict serializable.
 
     Bifurcación strict:
     - Si los 3 campos académicos del User están no-NULL → modo reglas.
-    - Sino → modo LLM (con fallback REVISAR_MANUAL si la API falla).
+    - Sino → modo LLM (con fallback según config si la API falla).
+
+    ``config`` es un dict opcional con claves:
+      - modelo_activo: str  (default GEMINI_MODEL)
+      - umbral_confianza: float  (default 0.5; LLM con confianza < umbral → REVISAR_MANUAL)
+      - modo_fallback: bool  (True → REVISAR_MANUAL en error; False → AUTO_NO_APTO)
 
     Nunca lanza excepción al caller.
     """
+    cfg = config or {}
+    modelo = cfg.get("modelo_activo") or GEMINI_MODEL
+    umbral = float(cfg.get("umbral_confianza", 0.5))
+    modo_fallback = bool(cfg.get("modo_fallback", True))
+
     base = {"evaluado_at": _utcnow_iso()}
 
     if _datos_academicos_completos(estudiante):
@@ -290,7 +302,14 @@ def evaluar_postulacion(
             }
 
     try:
-        llm_result = _invocar_gemini(postulacion, convocatoria, estudiante)
+        llm_result = _invocar_gemini(postulacion, convocatoria, estudiante, modelo=modelo)
+        # Aplicar umbral de confianza
+        if llm_result.get("confianza", 1.0) < umbral:
+            llm_result["decision_sugerida"] = "REVISAR_MANUAL"
+            llm_result["justificacion"] = (
+                f"[Confianza {llm_result['confianza']:.2f} < umbral {umbral:.2f}] "
+                + llm_result.get("justificacion", "")
+            )
         return {**base, **llm_result}
     except Exception as exc:
         LOGGER.warning(
@@ -298,14 +317,16 @@ def evaluar_postulacion(
             type(exc).__name__,
             exc,
         )
+        decision_fallback = "REVISAR_MANUAL" if modo_fallback else "AUTO_NO_APTO"
         return {
             **base,
-            "decision_sugerida": "REVISAR_MANUAL",
+            "decision_sugerida": decision_fallback,
             "confianza": 0.0,
             "modo": "fallback",
             "justificacion": (
                 f"Evaluación automática no disponible "
-                f"({type(exc).__name__}). Se requiere revisión manual."
+                f"({type(exc).__name__}). "
+                + ("Se requiere revisión manual." if modo_fallback else "Se marca como no apto por política de fallback.")
             ),
             "checks": [],
             "modelo": "fallback",

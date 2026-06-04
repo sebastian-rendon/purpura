@@ -41,6 +41,23 @@ def run_migrations() -> None:
             "CREATE INDEX IF NOT EXISTS ix_notificaciones_usuario_leida "
             "ON notificaciones (usuario_id, leida)"
         ),
+        (
+            "CREATE TABLE IF NOT EXISTS configuracion_ia ("
+            "id SERIAL PRIMARY KEY, "
+            "umbral_confianza FLOAT NOT NULL DEFAULT 0.5, "
+            "peso_promedio INTEGER NOT NULL DEFAULT 33, "
+            "peso_creditos INTEGER NOT NULL DEFAULT 33, "
+            "peso_semestre INTEGER NOT NULL DEFAULT 34, "
+            "modelo_activo VARCHAR(100) NOT NULL DEFAULT 'gemini-2.0-flash', "
+            "modo_fallback BOOLEAN NOT NULL DEFAULT TRUE, "
+            "updated_at TIMESTAMP NOT NULL DEFAULT NOW())"
+        ),
+        (
+            "INSERT INTO configuracion_ia "
+            "(umbral_confianza, peso_promedio, peso_creditos, peso_semestre, modelo_activo, modo_fallback) "
+            "SELECT 0.5, 33, 33, 34, 'gemini-2.0-flash', TRUE "
+            "WHERE NOT EXISTS (SELECT 1 FROM configuracion_ia LIMIT 1)"
+        ),
     ]
     with engine.begin() as conn:
         for stmt in column_statements:

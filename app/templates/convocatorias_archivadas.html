@@ -19,6 +19,7 @@
       <th>Semestre</th>
       <th>Archivada</th>
       <th>Por</th>
+      {% if user.role.value == 'administrador' %}<th></th>{% endif %}
     </tr>
   </thead>
   <tbody>
@@ -32,6 +33,14 @@
         {{ c.updated_at.strftime('%d %b %Y') if c.updated_at else '—' }}
       </td>
       <td style="font-size:12px;">{{ c.created_by_full_name }}</td>
+      {% if user.role.value == 'administrador' %}
+      <td>
+        <form method="post" action="/convocatorias/{{ c.id }}/eliminar" style="margin:0;"
+              onsubmit="return confirm('¿Eliminar la convocatoria {{ c.codigo }}? Esta acción no se puede deshacer.');">
+          <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar</button>
+        </form>
+      </td>
+      {% endif %}
     </tr>
     {% endfor %}
   </tbody>

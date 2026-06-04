@@ -164,6 +164,19 @@ class Notificacion(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class ConfiguracionIA(SQLModel, table=True):
+    __tablename__ = "configuracion_ia"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    umbral_confianza: float = Field(default=0.5)
+    peso_promedio: int = Field(default=33)
+    peso_creditos: int = Field(default=33)
+    peso_semestre: int = Field(default=34)
+    modelo_activo: str = Field(default="gemini-2.0-flash", max_length=100)
+    modo_fallback: bool = Field(default=True)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class AuditLog(SQLModel, table=True):
     __tablename__ = "audit_log"
 
