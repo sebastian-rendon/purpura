@@ -98,9 +98,9 @@
       </td>
       <td>
         {% if p.tiene_warning %}
-          <span style="font-size:11px; color:var(--udem-rojo); font-weight:700;">⚠ Manual</span>
+          <span style="font-size:11px; color:var(--udem-rojo); font-weight:700;">Manual</span>
         {% elif p.decision_automatica == 'APTA' %}
-          <span style="font-size:11px; color:#1F5D5B; font-weight:700;">✓ Auto</span>
+          <span style="font-size:11px; color:#1F5D5B; font-weight:700;">Auto</span>
         {% else %}
           <span style="font-size:11px; color:var(--udem-gris-claro);">{{ p.decision_automatica }}</span>
         {% endif %}

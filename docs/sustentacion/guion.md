@@ -132,7 +132,7 @@
 
 **Volver a Tab C** (estudiante1) y hacer F5.
 
-> En el navbar, la campana 🔔 ahora tiene un badge rojo con número. El estudiante hace click...
+> En el navbar, la campana ahora tiene un badge rojo con número. El estudiante hace click...
 
 **Acción**: click en campana → muestra dropdown con las últimas 5 no leídas.
 
@@ -196,7 +196,7 @@
 
 > El módulo de reportes muestra 4 KPIs en vivo: convocatorias activas, postulaciones totales, monitorías adjudicadas, y tasa de adjudicación. Filtros por facultad y rango de fechas. Tabla por facultad y por convocatoria.
 
-**Acción**: click en "📋 Postulaciones" del exportar bar → descarga el CSV.
+**Acción**: click en "Postulaciones" del exportar bar → descarga el CSV.
 
 > CSV con BOM UTF-8 y separador `;` para que Excel español lo abra con acentos. 12 columnas, incluyendo la decisión sugerida por IA y el modo. Esto es **trazabilidad institucional** — la coordinación puede auditar cualquier decisión semanas después.
 
@@ -289,4 +289,4 @@ Sugerencia: hacer dos ensayos completos antes de la sustentación cronometrando 
 - Tener un screenshot de respaldo de la card IA modo=llm con la justificación de Haiku, por si la API responde lento.
 - Hablar despacio, mostrar la pantalla con calma, dejar 2-3 segundos para que el jurado lea.
 
-Suerte equipo. 🎓
+Suerte equipo.

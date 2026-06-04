@@ -102,7 +102,7 @@
     <ul style="margin:12px 0 0; padding-left:20px; font-size:13px; color:var(--udem-gris-texto);">
       {% for chk in eval_ia.checks %}
         <li>
-          {% if chk.ok %}<span style="color:var(--udem-teal); font-weight:700;">✓</span>{% else %}<span style="color:var(--udem-rojo); font-weight:700;">✗</span>{% endif %}
+          {% if chk.ok %}<span style="color:var(--udem-teal); font-weight:700;">OK</span>{% else %}<span style="color:var(--udem-rojo); font-weight:700;">No</span>{% endif %}
           {{ chk.regla }}: actual <strong>{{ chk.actual }}</strong>, esperado {{ chk.esperado }}
         </li>
       {% endfor %}
