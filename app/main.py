@@ -1892,10 +1892,15 @@ def _load_aprobadas_de_convocatoria(
 def convocatorias_adjudicar_get(
     request: Request,
     conv_id: uuid.UUID,
-    user: User = Depends(require_role(UserRole.ADMINISTRADOR)),
+    user: User = Depends(require_role(UserRole.COORDINADOR, UserRole.ADMINISTRADOR)),
     session: Session = Depends(get_session),
 ):
     conv, _creator, _f, _m = _load_convocatoria_or_404(session, conv_id)
+    if user.role == UserRole.COORDINADOR and conv.created_by != user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo el coordinador que creó la convocatoria puede adjudicarla.",
+        )
     if conv.status != ConvocatoriaStatus.CERRADA:
         _flash(
             request,
@@ -1931,10 +1936,15 @@ def convocatorias_adjudicar_post(
     request: Request,
     conv_id: uuid.UUID,
     seleccionadas: list[int] = Form(default=[]),
-    user: User = Depends(require_role(UserRole.ADMINISTRADOR)),
+    user: User = Depends(require_role(UserRole.COORDINADOR, UserRole.ADMINISTRADOR)),
     session: Session = Depends(get_session),
 ):
     conv, _creator, _f, _m = _load_convocatoria_or_404(session, conv_id)
+    if user.role == UserRole.COORDINADOR and conv.created_by != user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo el coordinador que creó la convocatoria puede adjudicarla.",
+        )
     rows = _load_aprobadas_de_convocatoria(session, conv.id)
     postulaciones_aprobadas = [post for post, _ in rows]
 

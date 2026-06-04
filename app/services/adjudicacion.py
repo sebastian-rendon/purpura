@@ -29,7 +29,7 @@ def adjudicar_convocatoria(
     convocatoria: Convocatoria,
     postulaciones_aprobadas: list[Postulacion],
     ids_seleccionados: Iterable[int],
-    admin: User,
+    usuario: User,
 ) -> tuple[list[Monitor], dict]:
     """Ejecuta la adjudicación batch.
 
@@ -39,7 +39,7 @@ def adjudicar_convocatoria(
             convocatoria. La función las divide en adjudicadas vs
             no_adjudicadas según el set de IDs seleccionados.
         ids_seleccionados: IDs de postulaciones que ganan el cupo.
-        admin: User administrador que dispara la adjudicación.
+        usuario: User (administrador o coordinador owner) que dispara la adjudicación.
 
     Returns:
         (monitores_a_persistir, resumen). El caller hace session.add() de los
@@ -80,19 +80,19 @@ def adjudicar_convocatoria(
         )
 
     motivo_adj = (
-        f"Adjudicación final por administrador {admin.email}: "
+        f"Adjudicación final por {usuario.email}: "
         f"{len(set_seleccionados)} monitores asignados de "
         f"{len(postulaciones_aprobadas)} aprobadas."
     )
     motivo_no_adj = (
-        f"No adjudicada tras decisión final del administrador {admin.email}."
+        f"No adjudicada tras decisión final de {usuario.email}."
     )
 
     monitores_a_crear: list[Monitor] = []
     for post in postulaciones_aprobadas:
         if post.id in set_seleccionados:
             transicionar_postulacion(
-                post, POST_ADJUDICADA, admin, convocatoria, motivo=motivo_adj
+                post, POST_ADJUDICADA, usuario, convocatoria, motivo=motivo_adj
             )
             monitores_a_crear.append(
                 Monitor(
@@ -107,7 +107,7 @@ def adjudicar_convocatoria(
             transicionar_postulacion(
                 post,
                 POST_NO_ADJUDICADA,
-                admin,
+                usuario,
                 convocatoria,
                 motivo=motivo_no_adj,
             )
@@ -115,7 +115,7 @@ def adjudicar_convocatoria(
     transicionar_estado(
         convocatoria,
         ConvocatoriaStatus.ADJUDICADA,
-        admin,
+        usuario,
         motivo=motivo_adj,
     )
 

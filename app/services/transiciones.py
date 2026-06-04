@@ -136,8 +136,8 @@ TRANSICIONES_POSTULACION: dict[Tuple[str, str], Tuple[str, ...]] = {
     (POST_EN_REVISION, POST_CANCELADA):     ("estudiante_owner",),
     (POST_EN_REVISION, POST_APROBADA):      ("admin", "coord_conv_owner"),
     (POST_EN_REVISION, POST_RECHAZADA):     ("admin", "coord_conv_owner"),
-    (POST_APROBADA,    POST_ADJUDICADA):    ("admin",),
-    (POST_APROBADA,    POST_NO_ADJUDICADA): ("admin",),
+    (POST_APROBADA,    POST_ADJUDICADA):    ("admin", "coord_conv_owner"),
+    (POST_APROBADA,    POST_NO_ADJUDICADA): ("admin", "coord_conv_owner"),
 }
 
 
