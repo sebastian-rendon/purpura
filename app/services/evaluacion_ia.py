@@ -173,10 +173,32 @@ def _invocar_gemini(
     }
 
 
+def _cache_valido(postulacion) -> Optional[dict[str, Any]]:
+    """Devuelve el resultado cacheado si es válido para reusar, o None.
+
+    Se considera válido si tiene decision_sugerida distinta de REVISAR_MANUAL
+    (los resultados REVISAR_MANUAL son inciertos y vale la pena reevaluar).
+    """
+    cached = getattr(postulacion, "evaluacion_ia_ultima", None)
+    if not cached or not isinstance(cached, dict):
+        return None
+    decision = cached.get("decision_sugerida", "")
+    if decision in ("AUTO_APTO", "AUTO_NO_APTO") and cached.get("justificacion"):
+        return cached
+    return None
+
+
 def evaluar_postulacion(
-    postulacion, convocatoria, estudiante, config: Optional[dict] = None
+    postulacion,
+    convocatoria,
+    estudiante,
+    config: Optional[dict] = None,
+    forzar_reevaluacion: bool = False,
 ) -> dict[str, Any]:
-    """Evalúa una postulación consultando siempre a Gemini.
+    """Evalúa una postulación consultando a Gemini.
+
+    Si la postulación ya tiene un resultado cacheado con decision != REVISAR_MANUAL
+    y ``forzar_reevaluacion`` es False, retorna el caché sin llamar a Gemini.
 
     ``config`` es un dict opcional con claves:
       - modelo_activo: str  (default GEMINI_MODEL)
@@ -185,6 +207,16 @@ def evaluar_postulacion(
 
     Nunca lanza excepción al caller.
     """
+    if not forzar_reevaluacion:
+        cached = _cache_valido(postulacion)
+        if cached is not None:
+            LOGGER.debug(
+                "Cache hit para postulacion %s — decision: %s",
+                getattr(postulacion, "id", "?"),
+                cached.get("decision_sugerida"),
+            )
+            return cached
+
     cfg = config or {}
     modelo = cfg.get("modelo_activo") or GEMINI_MODEL
     umbral = float(cfg.get("umbral_confianza", 0.5))

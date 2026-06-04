@@ -112,6 +112,15 @@
       <strong style="color:var(--udem-negro);">Disclaimer:</strong>
       Esta es una sugerencia algorítmica. La decisión final corresponde al coordinador o administrador.
     </div>
+    {% if user.role.value in ('coordinador', 'administrador') %}
+    <div style="margin-top:12px; text-align:right;">
+      <form method="post" action="/postulaciones/{{ postulacion.id }}/reevaluar" style="margin:0; display:inline;">
+        <button type="submit" class="btn-udem-ghost" style="font-size:12px; padding:5px 12px;">
+          Reevaluar con IA
+        </button>
+      </form>
+    </div>
+    {% endif %}
   </div>
   {% endif %}
 

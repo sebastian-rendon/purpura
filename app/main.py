@@ -1362,10 +1362,20 @@ def _registrar_evaluacion_ia(
     user: User,
     trigger: str,
     session: Optional[Session] = None,
+    forzar_reevaluacion: bool = False,
 ) -> dict:
-    """Ejecuta evaluación y persiste en el objeto. Caller hace commit."""
+    """Ejecuta evaluación y persiste en el objeto. Caller hace commit.
+
+    - trigger='postular': primera evaluación, siempre llama a Gemini.
+    - trigger='iniciar_revision': usa caché si existe resultado válido.
+    - trigger='reevaluar': forzar_reevaluacion=True, siempre llama a Gemini.
+    """
     config = _get_config_ia(session) if session is not None else {}
-    resultado = evaluar_postulacion(postulacion, convocatoria, estudiante, config=config)
+    resultado = evaluar_postulacion(
+        postulacion, convocatoria, estudiante,
+        config=config,
+        forzar_reevaluacion=forzar_reevaluacion,
+    )
     postulacion.evaluacion_ia_ultima = resultado
     historial = list(postulacion.historial_estados or [])
     historial.append(
@@ -1461,7 +1471,7 @@ def postular_post(
     session.add(postulacion)
     session.flush()
 
-    _registrar_evaluacion_ia(postulacion, conv, user, user, trigger="postular", session=session)
+    _registrar_evaluacion_ia(postulacion, conv, user, user, trigger="postular", session=session, forzar_reevaluacion=True)
 
     notif = Notificacion(
         usuario_id=conv.created_by,
@@ -1850,6 +1860,29 @@ def postulacion_transicionar(
         f"Postulación {post.id}: {estado_origen} → {post.estado}.",
     )
     return RedirectResponse(f"/postulaciones/{post.id}", status_code=303)
+
+
+@app.post("/postulaciones/{post_id}/reevaluar")
+def postulacion_reevaluar(
+    request: Request,
+    post_id: int,
+    user: User = Depends(require_role(UserRole.COORDINADOR, UserRole.ADMINISTRADOR)),
+    session: Session = Depends(get_session),
+):
+    post, conv, estudiante = _load_postulacion_or_404(session, post_id, user)
+    _registrar_evaluacion_ia(
+        post, conv, estudiante, user,
+        trigger="reevaluar",
+        session=session,
+        forzar_reevaluacion=True,
+    )
+    session.add(post)
+    session.commit()
+    log_audit(session, user_id=user.id, action="REEVALUAR_IA", request=request,
+              entity_type="postulacion", entity_id=None,
+              payload={"postulacion_id": post_id})
+    _flash(request, "success", "Evaluación IA actualizada.")
+    return RedirectResponse(f"/postulaciones/{post_id}", status_code=303)
 
 
 @app.post("/postulaciones/{post_id}/nota")
