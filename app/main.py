@@ -201,12 +201,18 @@ def login_get(
 ):
     if user is not None:
         return RedirectResponse("/dashboard", status_code=303)
-    if rol not in ("estudiante", "coordinador", "administrador"):
+    if rol not in ("estudiante", "coordinador", "administrador", "registro"):
         rol = "estudiante"
     return templates.TemplateResponse(
         request,
         "login.html",
-        {"user": None, "error": None, "rol_preferido": rol},
+        {
+            "user": None,
+            "error": None,
+            "rol_preferido": rol,
+            "registro_error": None,
+            "registro_form": {},
+        },
     )
 
 
@@ -355,8 +361,26 @@ def login_post(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    rol_preferido: str = Form(default="estudiante"),
     session: Session = Depends(get_session),
 ):
+    _ROLES_LOGIN = {"estudiante", "coordinador", "administrador"}
+    rol_limpio = rol_preferido if rol_preferido in _ROLES_LOGIN else "estudiante"
+
+    def render_login_error(msg: str):
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {
+                "user": None,
+                "error": msg,
+                "rol_preferido": rol_limpio,
+                "registro_error": None,
+                "registro_form": {},
+            },
+            status_code=200,
+        )
+
     user = session.exec(
         select(User).where(User.email == email.strip().lower())
     ).first()
@@ -365,14 +389,11 @@ def login_post(
         or not user.is_active
         or not verify_password(password, user.password_hash)
     ):
-        return templates.TemplateResponse(
-            request,
-            "login.html",
-            {
-                "user": None,
-                "error": "Credenciales inválidas",
-            },
-            status_code=200,
+        return render_login_error("Credenciales inválidas.")
+
+    if user.role.value != rol_limpio:
+        return render_login_error(
+            "El correo ingresado no corresponde al perfil seleccionado."
         )
 
     request.session["user_id"] = str(user.id)
@@ -384,6 +405,63 @@ def login_post(
     session.commit()
     log_audit(session, user_id=user.id, action="LOGIN", request=request)
     return RedirectResponse("/dashboard", status_code=303)
+
+
+@app.post("/registro")
+def registro_post(
+    request: Request,
+    nombre_completo: str = Form(...),
+    email: str = Form(...),
+    rol: str = Form(...),
+    password: str = Form(...),
+    password2: str = Form(...),
+    session: Session = Depends(get_session),
+):
+    form_data = {
+        "nombre_completo": nombre_completo,
+        "email": email,
+        "rol": rol,
+    }
+
+    def render_registro_error(msg: str):
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {
+                "user": None,
+                "error": None,
+                "rol_preferido": "registro",
+                "registro_error": msg,
+                "registro_form": form_data,
+            },
+            status_code=200,
+        )
+
+    if rol not in ("estudiante", "coordinador"):
+        return render_registro_error("Perfil no válido.")
+
+    if password != password2:
+        return render_registro_error("Las contraseñas no coinciden.")
+
+    if len(password) < 8:
+        return render_registro_error("La contraseña debe tener al menos 8 caracteres.")
+
+    email_limpio = email.strip().lower()
+    if session.exec(select(User).where(User.email == email_limpio)).first():
+        return render_registro_error("Ya existe una cuenta con ese correo.")
+
+    nuevo_usuario = User(
+        email=email_limpio,
+        password_hash=hash_password(password),
+        full_name=nombre_completo.strip(),
+        role=UserRole(rol),
+        is_active=True,
+    )
+    session.add(nuevo_usuario)
+    session.commit()
+
+    _flash(request, "success", "Cuenta creada. Ya puedes iniciar sesión.")
+    return RedirectResponse("/login", status_code=303)
 
 
 @app.post("/logout")

@@ -15,38 +15,92 @@
               {% if rol_preferido == 'coordinador' %}data-active="true"{% endif %}>Coordinador</button>
       <button type="button" class="role-tab" data-rol="administrador"
               {% if rol_preferido == 'administrador' %}data-active="true"{% endif %}>Administrador</button>
+      <button type="button" class="role-tab" data-rol="registro"
+              {% if rol_preferido == 'registro' %}data-active="true"{% endif %}>Registrarse</button>
     </div>
 
-    {% if error %}
-      <div class="alert alert-danger" style="margin: 16px 32px;">{{ error }}</div>
-    {% endif %}
+    <!-- Panel login -->
+    <div id="panel-login" {% if rol_preferido == 'registro' %}style="display:none"{% endif %}>
+      {% if error %}
+        <div class="alert alert-danger" style="margin: 16px 32px;">{{ error }}</div>
+      {% endif %}
 
-    <form method="post" action="/login" class="login-form">
-      <input type="hidden" name="rol_preferido" id="rol_preferido" value="{{ rol_preferido or 'estudiante' }}">
+      <form method="post" action="/login" class="login-form">
+        <input type="hidden" name="rol_preferido" id="rol_preferido" value="{{ rol_preferido or 'estudiante' }}">
 
-      <div class="form-group">
-        <label for="email">Correo institucional</label>
-        <input type="email" name="email" id="email"
-               placeholder="ej. nombre@udem.edu.co" required autofocus>
-      </div>
+        <div class="form-group">
+          <label for="email">Correo institucional</label>
+          <input type="email" name="email" id="email"
+                 placeholder="ej. nombre@udem.edu.co" required autofocus>
+        </div>
 
-      <div class="form-group">
-        <label for="password">Contraseña</label>
-        <input type="password" name="password" id="password"
-               placeholder="Introduce tu contraseña" required>
-      </div>
+        <div class="form-group">
+          <label for="password">Contraseña</label>
+          <input type="password" name="password" id="password"
+                 placeholder="Introduce tu contraseña" required>
+        </div>
 
-      <div class="form-extras">
-        <label class="checkbox-inline">
-          <input type="checkbox" name="recordar"> Mantener sesión iniciada
-        </label>
-        <a href="#" class="link-suave">Olvidé mi contraseña</a>
-      </div>
+        <div class="form-extras">
+          <label class="checkbox-inline">
+            <input type="checkbox" name="recordar"> Mantener sesión iniciada
+          </label>
+          <a href="#" class="link-suave">Olvidé mi contraseña</a>
+        </div>
 
-      <button type="submit" class="btn-login">Iniciar sesión</button>
-    </form>
+        <button type="submit" class="btn-login">Iniciar sesión</button>
+      </form>
 
-    <p class="login-pie">¿No tienes cuenta? Contacta a la oficina de gestión académica.</p>
+      <p class="login-pie">¿No tienes cuenta? Selecciona la pestaña <strong>Registrarse</strong>.</p>
+    </div>
+
+    <!-- Panel registro -->
+    <div id="panel-registro" {% if rol_preferido != 'registro' %}style="display:none"{% endif %}>
+      {% if registro_error %}
+        <div class="alert alert-danger" style="margin: 16px 32px;">{{ registro_error }}</div>
+      {% endif %}
+
+      <form method="post" action="/registro" class="login-form">
+        <div class="form-group">
+          <label for="reg-nombre">Nombre completo</label>
+          <input type="text" name="nombre_completo" id="reg-nombre"
+                 placeholder="ej. María García López" required
+                 value="{{ (registro_form or {}).get('nombre_completo', '') }}">
+        </div>
+
+        <div class="form-group">
+          <label for="reg-email">Correo institucional</label>
+          <input type="email" name="email" id="reg-email"
+                 placeholder="ej. nombre@udem.edu.co" required
+                 value="{{ (registro_form or {}).get('email', '') }}">
+        </div>
+
+        <div class="form-group">
+          <label for="reg-rol">Perfil</label>
+          <select name="rol" id="reg-rol" required
+                  style="width:100%; padding:10px 12px; border:1px solid #d0d0d0; border-radius:6px; font-size:14px; background:#fff; color:#333;">
+            <option value="">— Selecciona tu perfil —</option>
+            <option value="estudiante" {% if (registro_form or {}).get('rol') == 'estudiante' %}selected{% endif %}>Estudiante</option>
+            <option value="coordinador" {% if (registro_form or {}).get('rol') == 'coordinador' %}selected{% endif %}>Coordinador</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="reg-password">Contraseña</label>
+          <input type="password" name="password" id="reg-password"
+                 placeholder="Mínimo 8 caracteres" required>
+        </div>
+
+        <div class="form-group">
+          <label for="reg-password2">Confirmar contraseña</label>
+          <input type="password" name="password2" id="reg-password2"
+                 placeholder="Repite la contraseña" required>
+        </div>
+
+        <button type="submit" class="btn-login">Crear cuenta</button>
+      </form>
+
+      <p class="login-pie">¿Ya tienes cuenta? Selecciona tu perfil en las pestañas de arriba.</p>
+    </div>
   </div>
 </div>
 
@@ -56,6 +110,8 @@
     const hidden = document.getElementById("rol_preferido");
     const card = document.querySelector(".login-card-con-tabs");
     const emailInput = document.getElementById("email");
+    const panelLogin = document.getElementById("panel-login");
+    const panelRegistro = document.getElementById("panel-registro");
 
     const PLACEHOLDERS = {
       estudiante:    "ej. estudiante@udem.edu.co",
@@ -69,8 +125,16 @@
       if (target) target.setAttribute("data-active", "true");
       if (hidden) hidden.value = rol;
       if (card) card.setAttribute("data-rol-activo", rol);
-      if (emailInput && PLACEHOLDERS[rol]) {
-        emailInput.placeholder = PLACEHOLDERS[rol];
+
+      if (rol === "registro") {
+        if (panelLogin) panelLogin.style.display = "none";
+        if (panelRegistro) panelRegistro.style.display = "";
+      } else {
+        if (panelLogin) panelLogin.style.display = "";
+        if (panelRegistro) panelRegistro.style.display = "none";
+        if (emailInput && PLACEHOLDERS[rol]) {
+          emailInput.placeholder = PLACEHOLDERS[rol];
+        }
       }
     }
 
@@ -78,7 +142,7 @@
 
     const params = new URLSearchParams(window.location.search);
     const rolUrl = params.get("rol");
-    if (rolUrl && ["estudiante", "coordinador", "administrador"].includes(rolUrl)) {
+    if (rolUrl && ["estudiante", "coordinador", "administrador", "registro"].includes(rolUrl)) {
       setActive(rolUrl);
     } else if (hidden && hidden.value) {
       setActive(hidden.value);

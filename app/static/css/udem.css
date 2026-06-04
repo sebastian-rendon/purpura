@@ -87,7 +87,7 @@ a:hover { color: var(--udem-rojo-oscuro); }
 }
 
 .udem-navbar .logosimbolo img {
-  height: 50px;
+  height: 100px;
   width: auto;
   display: block;
 }
