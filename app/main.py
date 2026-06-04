@@ -1,4 +1,6 @@
 import re
+import secrets
+import string
 import uuid
 from datetime import date, datetime
 from typing import Optional
@@ -212,6 +214,9 @@ def login_get(
             "rol_preferido": rol,
             "registro_error": None,
             "registro_form": {},
+            "panel_recuperar_activo": False,
+            "recuperar_error": None,
+            "recuperar_mensaje": None,
         },
     )
 
@@ -377,6 +382,9 @@ def login_post(
                 "rol_preferido": rol_limpio,
                 "registro_error": None,
                 "registro_form": {},
+                "panel_recuperar_activo": False,
+                "recuperar_error": None,
+                "recuperar_mensaje": None,
             },
             status_code=200,
         )
@@ -433,6 +441,9 @@ def registro_post(
                 "rol_preferido": "registro",
                 "registro_error": msg,
                 "registro_form": form_data,
+                "panel_recuperar_activo": False,
+                "recuperar_error": None,
+                "recuperar_mensaje": None,
             },
             status_code=200,
         )
@@ -462,6 +473,47 @@ def registro_post(
 
     _flash(request, "success", "Cuenta creada. Ya puedes iniciar sesión.")
     return RedirectResponse("/login", status_code=303)
+
+
+_LOGIN_CONTEXT_BASE = {
+    "user": None,
+    "error": None,
+    "rol_preferido": "estudiante",
+    "registro_error": None,
+    "registro_form": {},
+    "panel_recuperar_activo": True,
+}
+
+
+@app.post("/recuperar-contrasena")
+def recuperar_contrasena_post(
+    request: Request,
+    email: str = Form(...),
+    session: Session = Depends(get_session),
+):
+    email_limpio = email.strip().lower()
+    user = session.exec(select(User).where(User.email == email_limpio)).first()
+
+    ctx = dict(_LOGIN_CONTEXT_BASE)
+
+    if user is None or not user.is_active:
+        ctx["recuperar_error"] = "No encontramos una cuenta con ese correo."
+        ctx["recuperar_mensaje"] = None
+        return templates.TemplateResponse(request, "login.html", ctx, status_code=200)
+
+    alphabet = string.ascii_letters + string.digits
+    nueva_password = "".join(secrets.choice(alphabet) for _ in range(10))
+    user.password_hash = hash_password(nueva_password)
+    user.updated_at = datetime.utcnow()
+    session.add(user)
+    session.commit()
+
+    ctx["recuperar_error"] = None
+    ctx["recuperar_mensaje"] = (
+        f"Tu nueva contraseña temporal es: {nueva_password}"
+        " — Cámbiala después de iniciar sesión."
+    )
+    return templates.TemplateResponse(request, "login.html", ctx, status_code=200)
 
 
 @app.post("/logout")

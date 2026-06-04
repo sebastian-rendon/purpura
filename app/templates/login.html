@@ -44,11 +44,33 @@
           <label class="checkbox-inline">
             <input type="checkbox" name="recordar"> Mantener sesión iniciada
           </label>
-          <a href="#" class="link-suave">Olvidé mi contraseña</a>
+          <a href="#" class="link-suave" id="link-recuperar">Olvidé mi contraseña</a>
         </div>
 
         <button type="submit" class="btn-login">Iniciar sesión</button>
       </form>
+
+      <!-- Panel recuperar contraseña (inline) -->
+      <div id="panel-recuperar"
+           style="{% if not panel_recuperar_activo %}display:none;{% endif %}border-top:1px solid var(--udem-borde); margin:0 32px; padding:20px 0 8px;">
+        <p style="font-size:14px; font-weight:600; color:var(--udem-negro); margin:0 0 12px;">Recuperar contraseña</p>
+
+        {% if recuperar_mensaje %}
+          <div class="alert alert-success" style="margin-bottom:12px; font-weight:600;">{{ recuperar_mensaje }}</div>
+        {% endif %}
+        {% if recuperar_error %}
+          <div class="alert alert-danger" style="margin-bottom:12px;">{{ recuperar_error }}</div>
+        {% endif %}
+
+        <form method="post" action="/recuperar-contrasena">
+          <div class="form-group">
+            <label for="rec-email">Correo institucional</label>
+            <input type="email" name="email" id="rec-email"
+                   placeholder="ej. nombre@udem.edu.co" required>
+          </div>
+          <button type="submit" class="btn-login" style="margin-bottom:20px;">Recuperar</button>
+        </form>
+      </div>
 
       <p class="login-pie">¿No tienes cuenta? Selecciona la pestaña <strong>Registrarse</strong>.</p>
     </div>
@@ -112,6 +134,8 @@
     const emailInput = document.getElementById("email");
     const panelLogin = document.getElementById("panel-login");
     const panelRegistro = document.getElementById("panel-registro");
+    const panelRecuperar = document.getElementById("panel-recuperar");
+    const linkRecuperar = document.getElementById("link-recuperar");
 
     const PLACEHOLDERS = {
       estudiante:    "ej. estudiante@udem.edu.co",
@@ -139,6 +163,14 @@
     }
 
     tabs.forEach(t => t.addEventListener("click", () => setActive(t.dataset.rol)));
+
+    if (linkRecuperar && panelRecuperar) {
+      linkRecuperar.addEventListener("click", (e) => {
+        e.preventDefault();
+        const visible = panelRecuperar.style.display !== "none";
+        panelRecuperar.style.display = visible ? "none" : "";
+      });
+    }
 
     const params = new URLSearchParams(window.location.search);
     const rolUrl = params.get("rol");

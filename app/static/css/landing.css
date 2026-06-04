@@ -569,6 +569,7 @@
 .role-tab[data-rol="estudiante"][data-active="true"]    { background: var(--udem-teal);  border-color: var(--udem-teal); }
 .role-tab[data-rol="coordinador"][data-active="true"]   { background: var(--udem-rojo);  border-color: var(--udem-rojo); }
 .role-tab[data-rol="administrador"][data-active="true"] { background: var(--udem-azul);  border-color: var(--udem-azul); }
+.role-tab[data-rol="registro"][data-active="true"]      { background: #6B46C1;           border-color: #6B46C1; }
 
 .login-form {
   padding: 32px;
