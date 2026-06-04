@@ -27,7 +27,6 @@
   padding: 20px;
   text-decoration: none;
   color: inherit;
-  border-left: 4px solid var(--udem-rojo);
   transition: transform 0.15s, box-shadow 0.15s;
 }
 
