@@ -859,8 +859,8 @@ def convocatorias_crear_post(
     # Cupos — parsing manual para evitar 422 JSON
     try:
         cupos_int = int(cupos.strip())
-        if cupos_int <= 0:
-            return render_error("Los cupos deben ser mayores a 0.")
+        if cupos_int < 1:
+            return render_error("Los cupos deben ser mínimo 1.")
     except (ValueError, AttributeError):
         return render_error("El campo 'cupos' debe ser un número entero mayor que 0.")
 
@@ -906,6 +906,13 @@ def convocatorias_crear_post(
         return render_error("Los créditos mínimos son obligatorios.")
     if sem is None:
         return render_error("El semestre mínimo es obligatorio.")
+
+    if not (0.0 <= prom <= 5.0):
+        return render_error("El promedio debe estar entre 0 y 5.")
+    if int(cred) < 1:
+        return render_error("Los créditos mínimos deben ser mayor a 0.")
+    if not (1 <= int(sem) <= 10):
+        return render_error("El semestre debe estar entre 1 y 10.")
 
     requisitos = {
         "promedio_minimo": prom,
@@ -1223,8 +1230,8 @@ def convocatorias_editar_post(
     # Cupos — parsing manual para evitar 422 JSON
     try:
         cupos_int = int(cupos.strip())
-        if cupos_int <= 0:
-            return render_error("Los cupos deben ser mayores a 0.")
+        if cupos_int < 1:
+            return render_error("Los cupos deben ser mínimo 1.")
     except (ValueError, AttributeError):
         return render_error("El campo 'cupos' debe ser un número entero mayor que 0.")
 
@@ -1263,6 +1270,13 @@ def convocatorias_editar_post(
         return render_error("Los créditos mínimos son obligatorios.")
     if sem is None:
         return render_error("El semestre mínimo es obligatorio.")
+
+    if not (0.0 <= prom <= 5.0):
+        return render_error("El promedio debe estar entre 0 y 5.")
+    if int(cred) < 1:
+        return render_error("Los créditos mínimos deben ser mayor a 0.")
+    if not (1 <= int(sem) <= 10):
+        return render_error("El semestre debe estar entre 1 y 10.")
 
     conv.titulo = titulo.strip()
     conv.descripcion = descripcion.strip() if descripcion else None

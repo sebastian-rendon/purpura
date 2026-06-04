@@ -67,18 +67,18 @@
         <div class="col-md-4">
           <label for="promedio_minimo">Promedio mínimo</label>
           <input type="number" class="form-control" id="promedio_minimo" name="promedio_minimo"
-                 step="0.1" min="0" max="5"
+                 step="0.1" min="0.0" max="5.0"
                  value="{{ form.promedio_minimo or '' }}" required>
         </div>
         <div class="col-md-4">
           <label for="creditos_minimos">Créditos mínimos</label>
           <input type="number" class="form-control" id="creditos_minimos" name="creditos_minimos"
-                 min="0" value="{{ form.creditos_minimos or '' }}" required>
+                 min="1" value="{{ form.creditos_minimos or '' }}" required>
         </div>
         <div class="col-md-4">
           <label for="semestre_minimo">Semestre mínimo</label>
           <input type="number" class="form-control" id="semestre_minimo" name="semestre_minimo"
-                 min="1" max="12" value="{{ form.semestre_minimo or '' }}" required>
+                 min="1" max="10" value="{{ form.semestre_minimo or '' }}" required>
         </div>
       </div>
     </fieldset>
