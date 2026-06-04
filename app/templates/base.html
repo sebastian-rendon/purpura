@@ -54,12 +54,11 @@
       {% if rol == 'administrador' %}
         <a href="/admin/panel" {% if '/admin' in request.url.path %}class="active"{% endif %}>Panel</a>
       {% endif %}
-      <a href="/documentacion" {% if request.url.path == '/documentacion' %}class="active"{% endif %}>Documentación</a>
     </nav>
 
     <details class="campana" data-campana="true" style="position:relative; margin:0 10px;">
       <summary style="list-style:none; cursor:pointer; user-select:none; padding:6px 8px; border-radius:4px;">
-        <span style="font-size:20px; line-height:1;" aria-label="Notificaciones">🔔</span>
+        <span style="font-size:20px; line-height:1;" aria-label="Notificaciones">🕭</span>
         {% if notif_count and notif_count > 0 %}
           <span class="campana-badge" data-notif-count="{{ notif_count }}"
                 style="position:absolute; top:-2px; right:-2px; background:var(--udem-rojo); color:white; font-size:10px; font-weight:700; padding:2px 6px; border-radius:10px; min-width:18px; text-align:center;">
