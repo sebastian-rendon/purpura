@@ -54,8 +54,8 @@ def run_migrations() -> None:
         ),
         (
             "INSERT INTO configuracion_ia "
-            "(umbral_confianza, peso_promedio, peso_creditos, peso_semestre, modelo_activo, modo_fallback) "
-            "SELECT 0.5, 33, 33, 34, 'gemini-2.0-flash', TRUE "
+            "(umbral_confianza, peso_promedio, peso_creditos, peso_semestre, modelo_activo, modo_fallback, updated_at) "
+            "SELECT 0.5, 33, 33, 34, 'gemini-2.0-flash', TRUE, NOW() "
             "WHERE NOT EXISTS (SELECT 1 FROM configuracion_ia LIMIT 1)"
         ),
     ]
