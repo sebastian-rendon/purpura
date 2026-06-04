@@ -1,13 +1,11 @@
 """
-Evaluación automática híbrida de postulaciones.
+Evaluación automática de postulaciones via Gemini.
 
-Estrategia:
-1. Si los datos del estudiante son suficientes para aplicar reglas
-   determinísticas → decide AUTO_APTO / AUTO_NO_APTO.
-2. Si los datos son insuficientes → invoca Gemini Flash con prompt
-   estructurado y persiste la sugerencia.
-3. Si la API falla (timeout, rate limit, key faltante, etc.) → fallback
-   REVISAR_MANUAL sin levantar excepción al caller.
+Flujo único:
+1. Construir mensaje con datos de la convocatoria y el estudiante.
+2. Consultar Gemini (siempre, sin importar si los datos están completos).
+3. Parsear JSON de respuesta: decision, confianza, justificacion.
+4. Si Gemini falla → fallback REVISAR_MANUAL sin levantar excepción.
 
 La función es PURA: recibe objetos, retorna dict, no toca DB. El router
 es responsable de persistir el resultado en Postulacion.evaluacion_ia_ultima
@@ -52,116 +50,32 @@ def _utcnow_iso() -> str:
     return datetime.utcnow().isoformat()
 
 
-def _datos_academicos_completos(estudiante) -> bool:
-    """STRICT: los 3 campos del User deben estar no-NULL para activar reglas.
-
-    Si falta uno, la evaluación cae al LLM. Evita validaciones parciales
-    engañosas (ej: aprobar solo por promedio sin haber validado créditos).
-    """
-    return (
-        getattr(estudiante, "promedio_acumulado", None) is not None
-        and getattr(estudiante, "creditos_aprobados", None) is not None
-        and getattr(estudiante, "semestre_actual", None) is not None
-    )
-
-
-def _aplicar_reglas(estudiante, convocatoria) -> list[dict]:
-    """Construye la lista de checks aplicables según `convocatoria.requisitos`.
-
-    Asume que `_datos_academicos_completos(estudiante)` es True. Solo
-    añade un check si la convocatoria publica el requisito correspondiente.
-    """
-    checks: list[dict] = []
-    requisitos = convocatoria.requisitos or {}
-
-    if requisitos.get("promedio_minimo") is not None:
-        try:
-            minimo = float(requisitos["promedio_minimo"])
-            actual = float(estudiante.promedio_acumulado)
-            checks.append(
-                {
-                    "regla": "promedio_minimo",
-                    "esperado": f">= {minimo:.1f}",
-                    "actual": round(actual, 2),
-                    "ok": actual >= minimo,
-                }
-            )
-        except (TypeError, ValueError):
-            pass
-
-    if requisitos.get("creditos_minimos") is not None:
-        try:
-            minimo = int(requisitos["creditos_minimos"])
-            actual = int(estudiante.creditos_aprobados)
-            checks.append(
-                {
-                    "regla": "creditos_minimos",
-                    "esperado": f">= {minimo}",
-                    "actual": actual,
-                    "ok": actual >= minimo,
-                }
-            )
-        except (TypeError, ValueError):
-            pass
-
-    if requisitos.get("semestre_minimo") is not None:
-        try:
-            minimo = int(requisitos["semestre_minimo"])
-            actual = int(estudiante.semestre_actual)
-            checks.append(
-                {
-                    "regla": "semestre_minimo",
-                    "esperado": f">= {minimo}",
-                    "actual": actual,
-                    "ok": actual >= minimo,
-                }
-            )
-        except (TypeError, ValueError):
-            pass
-
-    return checks
-
-
-def _resumen_reglas(checks: list[dict]) -> str:
-    fallidos = [c for c in checks if not c["ok"]]
-    if not fallidos:
-        return "Cumple los requisitos automáticos: " + ", ".join(
-            f"{c['regla']} {c['actual']} {c['esperado']}" for c in checks
-        ) + "."
-    return "No cumple: " + "; ".join(
-        f"{c['regla']} actual {c['actual']} vs esperado {c['esperado']}"
-        for c in fallidos
-    ) + "."
-
-
 def _construir_user_message(postulacion, convocatoria, estudiante) -> str:
-    facultad_nombre = "no especificada"
-    materia_nombre = "no especificada"
-    if getattr(convocatoria, "asignatura", None):
-        materia_nombre = convocatoria.asignatura
-    if getattr(convocatoria, "facultad", None):
-        facultad_nombre = convocatoria.facultad
+    facultad_nombre = getattr(convocatoria, "facultad", None) or "no especificada"
+    asignatura = getattr(convocatoria, "asignatura", None) or "no especificada"
 
     promedio = getattr(estudiante, "promedio_acumulado", None)
     creditos = getattr(estudiante, "creditos_aprobados", None)
     semestre = getattr(estudiante, "semestre_actual", None)
 
+    requisitos = convocatoria.requisitos or {}
+
     return (
         f"Convocatoria: {convocatoria.titulo}\n"
         f"Código: {convocatoria.codigo}\n"
         f"Facultad: {facultad_nombre}\n"
-        f"Asignatura/materia: {materia_nombre}\n"
+        f"Asignatura/materia: {asignatura}\n"
+        f"Descripción: {getattr(convocatoria, 'descripcion', None) or 'no especificada'}\n"
         f"Requisitos publicados:\n"
-        f"{json.dumps(convocatoria.requisitos or {}, indent=2, ensure_ascii=False)}\n\n"
+        f"- Promedio mínimo: {requisitos.get('promedio_minimo', 'no especificado')}\n"
+        f"- Créditos mínimos: {requisitos.get('creditos_minimos', 'no especificado')}\n"
+        f"- Semestre mínimo: {requisitos.get('semestre_minimo', 'no especificado')}\n\n"
         f"Estudiante:\n"
         f"- Email: {estudiante.email}\n"
-        f"- Nombre: {estudiante.full_name or 'no especificado'}\n"
-        f"- Promedio acumulado: "
-        f"{promedio if promedio is not None else 'no registrado'}\n"
-        f"- Créditos aprobados: "
-        f"{creditos if creditos is not None else 'no registrado'}\n"
-        f"- Semestre actual: "
-        f"{semestre if semestre is not None else 'no registrado'}\n\n"
+        f"- Nombre: {getattr(estudiante, 'full_name', None) or 'no especificado'}\n"
+        f"- Promedio acumulado: {promedio if promedio is not None else 'no disponible'}\n"
+        f"- Créditos aprobados: {creditos if creditos is not None else 'no disponible'}\n"
+        f"- Semestre actual: {semestre if semestre is not None else 'no disponible'}\n\n"
         f"Motivación del estudiante:\n{postulacion.motivacion or 'no proporcionada'}\n\n"
         "Evalúa según las reglas y responde JSON."
     )
@@ -241,7 +155,6 @@ def _invocar_gemini(
         justificacion = str(justificacion)
     justificacion = justificacion[:300]
 
-    # Tokens de uso si están disponibles
     tokens_in = 0
     tokens_out = 0
     if getattr(resp, "usage_metadata", None):
@@ -263,15 +176,11 @@ def _invocar_gemini(
 def evaluar_postulacion(
     postulacion, convocatoria, estudiante, config: Optional[dict] = None
 ) -> dict[str, Any]:
-    """Evalúa una postulación y retorna un dict serializable.
-
-    Bifurcación strict:
-    - Si los 3 campos académicos del User están no-NULL → modo reglas.
-    - Sino → modo LLM (con fallback según config si la API falla).
+    """Evalúa una postulación consultando siempre a Gemini.
 
     ``config`` es un dict opcional con claves:
       - modelo_activo: str  (default GEMINI_MODEL)
-      - umbral_confianza: float  (default 0.5; LLM con confianza < umbral → REVISAR_MANUAL)
+      - umbral_confianza: float  (default 0.5; resultado con confianza < umbral → REVISAR_MANUAL)
       - modo_fallback: bool  (True → REVISAR_MANUAL en error; False → AUTO_NO_APTO)
 
     Nunca lanza excepción al caller.
@@ -283,27 +192,8 @@ def evaluar_postulacion(
 
     base = {"evaluado_at": _utcnow_iso()}
 
-    if _datos_academicos_completos(estudiante):
-        try:
-            checks = _aplicar_reglas(estudiante, convocatoria)
-        except Exception as exc:
-            LOGGER.warning("Falla aplicando reglas: %s", exc)
-            checks = []
-        if checks:
-            todos_ok = all(c["ok"] for c in checks)
-            return {
-                **base,
-                "decision_sugerida": "AUTO_APTO" if todos_ok else "AUTO_NO_APTO",
-                "confianza": 1.0,
-                "modo": "reglas",
-                "justificacion": _resumen_reglas(checks),
-                "checks": checks,
-                "modelo": "reglas-v1",
-            }
-
     try:
         llm_result = _invocar_gemini(postulacion, convocatoria, estudiante, modelo=modelo)
-        # Aplicar umbral de confianza
         if llm_result.get("confianza", 1.0) < umbral:
             llm_result["decision_sugerida"] = "REVISAR_MANUAL"
             llm_result["justificacion"] = (
@@ -323,11 +213,7 @@ def evaluar_postulacion(
             "decision_sugerida": decision_fallback,
             "confianza": 0.0,
             "modo": "fallback",
-            "justificacion": (
-                f"Evaluación automática no disponible "
-                f"({type(exc).__name__}). "
-                + ("Se requiere revisión manual." if modo_fallback else "Se marca como no apto por política de fallback.")
-            ),
+            "justificacion": "Servicio IA no disponible, requiere revisión manual.",
             "checks": [],
             "modelo": "fallback",
         }
