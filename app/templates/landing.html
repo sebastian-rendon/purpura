@@ -118,6 +118,8 @@
     {% if convocatorias %}
     <div class="convocatorias-grid">
       {% for c in convocatorias %}
+      <a href="{% if request.session.get('user_id') %}/convocatorias/{{ c.id }}{% else %}/login{% endif %}"
+         style="text-decoration:none; color:inherit; display:block;">
       <article class="conv-card">
         <div class="conv-meta">
           <span class="badge-estado badge-abierta">{{ c.estado_publico }}</span>
@@ -130,6 +132,7 @@
           <span>{{ c.cupos }} cupos</span>
         </div>
       </article>
+      </a>
       {% endfor %}
     </div>
     {% else %}
