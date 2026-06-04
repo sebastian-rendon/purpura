@@ -72,28 +72,36 @@
   </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-  const modal = new bootstrap.Modal(document.getElementById("modalEliminar"));
-  const cuerpo = document.getElementById("modalEliminarCuerpo");
+(function () {
+  const modalEl = document.getElementById("modalEliminar");
+  const cuerpo  = document.getElementById("modalEliminarCuerpo");
   const btnConfirmar = document.getElementById("btnConfirmarEliminar");
   let formPendiente = null;
 
+  const modal = new bootstrap.Modal(modalEl);
+
   document.querySelectorAll(".btn-abrir-modal").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const form = btn.closest(".form-eliminar");
+      const form  = btn.closest(".form-eliminar");
       const codigo = form.dataset.codigo;
       formPendiente = form;
-      cuerpo.textContent = `¿Eliminar la convocatoria ${codigo}? Esta acción no se puede deshacer.`;
+      cuerpo.textContent =
+        "¿Eliminar la convocatoria " + codigo + "? Esta acción no se puede deshacer.";
       modal.show();
     });
   });
 
   btnConfirmar.addEventListener("click", () => {
+    modal.hide();
     if (formPendiente) {
       formPendiente.submit();
     }
   });
-});
+})();
 </script>
 {% endblock %}
