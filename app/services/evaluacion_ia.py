@@ -81,22 +81,41 @@ def _construir_user_message(postulacion, convocatoria, estudiante) -> str:
     )
 
 
+def _limpiar_markdown(texto: str) -> str:
+    """Elimina bloques ```json ... ``` o ``` ... ``` que Gemini suele añadir."""
+    texto = texto.strip()
+    if "```" in texto:
+        texto = re.sub(r"```(?:json)?\s*", "", texto)
+        texto = texto.replace("```", "")
+    return texto.strip()
+
+
 def _parsear_json_defensivo(texto: str) -> dict[str, Any]:
-    """Intenta parsear JSON. Si viene con markdown fences o texto extra,
-    extrae el primer bloque que parezca JSON."""
+    """Parsea el JSON de la respuesta de Gemini con múltiples estrategias.
+
+    1. Limpia markdown fences.
+    2. Intenta json.loads directo sobre el texto limpio.
+    3. Si falla, extrae el primer bloque {...} con regex DOTALL (soporta anidación).
+    4. Devuelve {} si todo falla.
+    """
     if not texto:
         return {}
-    texto = texto.strip()
+
+    texto_limpio = _limpiar_markdown(texto)
+
     try:
-        return json.loads(texto)
+        return json.loads(texto_limpio)
     except json.JSONDecodeError:
         pass
-    match = re.search(r"\{[^{}]*\}", texto, re.DOTALL)
+
+    # Regex amplia: captura desde el primer { hasta el último } (soporta JSON anidado)
+    match = re.search(r"\{.*\}", texto_limpio, re.DOTALL)
     if match:
         try:
             return json.loads(match.group(0))
         except json.JSONDecodeError:
-            return {}
+            pass
+
     return {}
 
 
@@ -135,9 +154,12 @@ def _invocar_gemini(
     if resp.text:
         texto_resp = resp.text.strip()
 
+    print("Respuesta RAW Gemini:", texto_resp)
+    LOGGER.debug("Respuesta RAW Gemini: %s", texto_resp)
+
     parsed = _parsear_json_defensivo(texto_resp)
 
-    decision_llm = parsed.get("decision", "REVISAR_MANUAL")
+    decision_llm = parsed.get("decision") or "REVISAR_MANUAL"
     if not isinstance(decision_llm, str):
         decision_llm = "REVISAR_MANUAL"
     decision_sugerida = _DECISION_LLM_A_INTERNA.get(
@@ -150,10 +172,11 @@ def _invocar_gemini(
     except (TypeError, ValueError):
         confianza = 0.5
 
-    justificacion = parsed.get("justificacion") or "(sin justificación)"
-    if not isinstance(justificacion, str):
-        justificacion = str(justificacion)
-    justificacion = justificacion[:300]
+    justificacion_raw = parsed.get("justificacion")
+    if justificacion_raw and isinstance(justificacion_raw, str) and justificacion_raw.strip():
+        justificacion = justificacion_raw.strip()[:300]
+    else:
+        justificacion = "El modelo no proporcionó justificación."
 
     tokens_in = 0
     tokens_out = 0
