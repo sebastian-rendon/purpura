@@ -769,14 +769,14 @@ def _parse_optional_number(value: Optional[str]) -> Optional[float]:
 @app.post("/convocatorias/crear")
 def convocatorias_crear_post(
     request: Request,
-    codigo: str = Form(...),
-    titulo: str = Form(...),
+    codigo: str = Form(default=""),
+    titulo: str = Form(default=""),
     descripcion: Optional[str] = Form(None),
     facultad_id: str = Form(default=""),
-    asignatura: str = Form(...),
+    asignatura: str = Form(default=""),
     cupos: str = Form(default=""),
-    fecha_apertura: str = Form(...),
-    fecha_cierre: str = Form(...),
+    fecha_apertura: str = Form(default=""),
+    fecha_cierre: str = Form(default=""),
     promedio_minimo: str = Form(default=""),
     creditos_minimos: str = Form(default=""),
     semestre_minimo: str = Form(default=""),
@@ -812,6 +812,16 @@ def convocatorias_crear_post(
             },
             status_code=200,
         )
+
+    # Validación de campos de texto obligatorios
+    if not titulo.strip():
+        return render_error("El campo 'título' es obligatorio.")
+    if not asignatura.strip():
+        return render_error("El campo 'asignatura' es obligatorio.")
+    if not fecha_apertura.strip():
+        return render_error("La fecha de apertura es obligatoria.")
+    if not fecha_cierre.strip():
+        return render_error("La fecha de cierre es obligatoria.")
 
     codigo_norm = codigo.strip().upper()
     if not CODIGO_REGEX.match(codigo_norm):
@@ -1110,13 +1120,13 @@ def convocatorias_editar_get(
 def convocatorias_editar_post(
     request: Request,
     conv_id: uuid.UUID,
-    titulo: str = Form(...),
+    titulo: str = Form(default=""),
     descripcion: Optional[str] = Form(None),
     facultad_id: str = Form(default=""),
-    asignatura: str = Form(...),
+    asignatura: str = Form(default=""),
     cupos: str = Form(default=""),
-    fecha_apertura: str = Form(...),
-    fecha_cierre: str = Form(...),
+    fecha_apertura: str = Form(default=""),
+    fecha_cierre: str = Form(default=""),
     promedio_minimo: str = Form(default=""),
     creditos_minimos: str = Form(default=""),
     semestre_minimo: str = Form(default=""),
@@ -1166,6 +1176,16 @@ def convocatorias_editar_post(
             },
             status_code=200,
         )
+
+    # Validación de campos de texto obligatorios
+    if not titulo.strip():
+        return render_error("El campo 'título' es obligatorio.")
+    if not asignatura.strip():
+        return render_error("El campo 'asignatura' es obligatorio.")
+    if not fecha_apertura.strip():
+        return render_error("La fecha de apertura es obligatoria.")
+    if not fecha_cierre.strip():
+        return render_error("La fecha de cierre es obligatoria.")
 
     # Cupos — parsing manual para evitar 422 JSON
     try:
